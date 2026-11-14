@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/v/:id",
-      "destination": "/viewer.html"
+      "destination": "/viewer"
     }
   ],
   "crons": [
