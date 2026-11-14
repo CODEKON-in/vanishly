@@ -1,20 +1,21 @@
 /* ==========================================================================
-   Vanishly — ink-violet base, electric lime accent, things that dissolve.
+   Vanishly — "Sherbet": cream paper, ink outlines, candy colours, sticker
+   shadows, and things that pop out of existence.
    Self-hosted fonts only (strict CSP: no external origins, no inline styles).
    ========================================================================== */
 
 @font-face {
-  font-family: 'Bricolage';
-  src: url('/fonts/bricolage-latin.woff2') format('woff2-variations'),
-       url('/fonts/bricolage-latin.woff2') format('woff2');
-  font-weight: 200 800;
+  font-family: 'Fredoka';
+  src: url('/fonts/fredoka-latin.woff2') format('woff2-variations'),
+       url('/fonts/fredoka-latin.woff2') format('woff2');
+  font-weight: 300 700;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Inter';
-  src: url('/fonts/inter-var-latin.woff2') format('woff2-variations'),
-       url('/fonts/inter-var-latin.woff2') format('woff2');
+  font-family: 'Outfit';
+  src: url('/fonts/outfit-latin.woff2') format('woff2-variations'),
+       url('/fonts/outfit-latin.woff2') format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -29,46 +30,60 @@
 }
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* Ink-violet base, electric lime accent. */
-  --bg: #0A0710;
-  --bg-elev: #150D24;
-  --bg-elev-2: #1C1230;
-  --line: #2B1F45;
-  --line-soft: #3A2A5C;
+  /* Cream paper + ink. */
+  --bg: #FFF6EA;
+  --bg-elev: #FFFFFF;
+  --bg-elev-2: #FFF0DC;
+  --ink: #1D1530;
+  --line: #1D1530;          /* outlines are ink: chunky and friendly */
+  --line-soft: #EADBC4;
 
-  --text: #F4F0FF;          /* 16:1 on --bg  */
-  --text-rgb: 244 240 255;
-  --muted: #B3A6D1;         /* 8.6:1 on --bg */
-  --faint: #9385BA;         /* 6.0:1 on --bg */
+  --text: #1D1530;          /* 16:1 on --bg  */
+  --text-rgb: 29 21 48;
+  --muted: #554A6B;         /* 8:1 on --bg   */
+  --faint: #6E6385;         /* 5.4:1 on --bg */
 
-  --accent: #C6FF3D;        /* 15.6:1 on --bg */
-  --accent-rgb: 198 255 61;
-  --accent-bright: #D8FF78;
-  --accent-deep: #A5E31E;
-  --accent-ink: #0D1300;    /* text ON lime  */
+  /* Candy palette. Violet is the action colour. */
+  --accent: #6A4CFF;        /* 5.2:1 on --bg, white text on it 5.6:1 */
+  --accent-rgb: 106 76 255;
+  --accent-bright: #7E64FF;
+  --accent-deep: #5236E8;
+  --accent-ink: #FFFFFF;
+  --accent-glow: rgb(106 76 255 / .25);
 
-  --violet: #A78BFA;        /* soft secondary */
-  --violet-rgb: 167 139 250;
+  --sun: #FFD23F;
+  --sun-rgb: 255 210 63;
+  --pink: #FF7EB6;
+  --pink-rgb: 255 126 182;
+  --mint: #3CDFA8;
+  --mint-rgb: 60 223 168;
 
-  --ok: #3DF0C0;
-  --warn: #FFC24B;
-  --amber: #FFC24B;
-  --amber-rgb: 255 194 75;
-  --danger: #FF5D73;
-  --danger-rgb: 255 93 115;
+  --violet: #FF7EB6;        /* secondary sparkle colour (kept name for old rules) */
+  --violet-rgb: 255 126 182;
 
-  --display: 'Bricolage', 'Segoe UI', system-ui, sans-serif;
-  --body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ok: #0B8F62;
+  --warn: #9A6400;
+  --amber: #E08A00;
+  --amber-rgb: 224 138 0;
+  --danger: #E0263E;
+  --danger-rgb: 224 38 62;
+
+  --display: 'Fredoka', 'Segoe UI', system-ui, sans-serif;
+  --body: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  --radius: 18px;
-  --radius-sm: 12px;
-  --maxw: 640px;
-  --shadow: 0 18px 50px rgba(0, 0, 0, .55);
-  --shadow-lift: 0 26px 70px rgba(0, 0, 0, .65);
+  --radius: 24px;
+  --radius-sm: 16px;
+  --maxw: 600px;
+  --border: 2.5px solid var(--ink);
+  --pop: 5px 5px 0 var(--ink);         /* the sticker shadow */
+  --pop-sm: 3px 3px 0 var(--ink);
+  --shadow: var(--pop);
+  --shadow-lift: 7px 7px 0 var(--ink);
   --ease: cubic-bezier(.22, .68, .32, 1);
+  --spring: cubic-bezier(.34, 1.56, .64, 1);
 
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
@@ -1117,4 +1132,340 @@ body.viewer { background: #080411; }
   .page-in { animation: none; }
   .fading, .dissolving { animation: fadeOutPlain .25s linear both; }
   @keyframes fadeOutPlain { to { opacity: 0; } }
+}
+
+/* ==========================================================================
+   SHERBET THEME LAYER
+   Cream paper, ink outlines, candy colours, sticker shadows that squish.
+   Sits after the base rules on purpose so it wins without !important.
+   ========================================================================== */
+
+/* ---------------------------------------------------------- page ---------- */
+html { background: var(--bg); }
+body { background: var(--bg); font-feature-settings: normal; }
+body::before {
+  inset: -12%;
+  background:
+    radial-gradient(38% 30% at 12% 14%, rgb(var(--sun-rgb) / .55), transparent 70%),
+    radial-gradient(34% 28% at 90% 20%, rgb(var(--pink-rgb) / .38), transparent 70%),
+    radial-gradient(40% 32% at 78% 92%, rgb(var(--accent-rgb) / .20), transparent 70%),
+    radial-gradient(30% 26% at 8% 86%, rgb(var(--mint-rgb) / .30), transparent 70%);
+  animation: blobDrift 22s ease-in-out infinite alternate;
+}
+@keyframes blobDrift {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  50%  { transform: translate(2%, -3%) rotate(4deg) scale(1.04); }
+  100% { transform: translate(-3%, 2%) rotate(-3deg) scale(1.02); }
+}
+body::after { opacity: .05; mix-blend-mode: multiply; }
+
+h1, h2, h3 { font-weight: 650; letter-spacing: -.01em; line-height: 1.12; }
+h1 { font-size: clamp(1.8rem, 7.5vw, 2.4rem); }
+.sub, .tiny { color: var(--muted); }
+a { color: var(--accent-deep); }
+::selection { background: var(--sun); color: var(--ink); }
+
+/* -------------------------------------------------------- header ---------- */
+.site-head { gap: 14px; margin-bottom: 28px; }
+.logo {
+  background: var(--accent);
+  color: #fff;
+  border: var(--border);
+  border-radius: 14px;
+  box-shadow: var(--pop-sm);
+  font-weight: 700;
+  font-size: 1.3rem;
+  transform: rotate(-6deg);
+  transition: transform .35s var(--spring);
+  animation: logoBob 6s ease-in-out infinite;
+}
+.site-head:hover .logo { transform: rotate(8deg) scale(1.08); animation: none; }
+@keyframes logoBob {
+  0%, 100% { transform: rotate(-6deg) translateY(0); }
+  50%      { transform: rotate(-2deg) translateY(-3px); }
+}
+.wordmark { font-weight: 700; letter-spacing: -.02em; font-size: clamp(2rem, 8vw, 2.6rem); }
+
+/* ---------------------------------------------------------- cards --------- */
+.card {
+  background: var(--bg-elev);
+  border: var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--pop);
+  padding: 22px;
+  margin-bottom: 20px;
+}
+.card:hover { transform: translate(-2px, -2px); border-color: var(--ink); box-shadow: var(--shadow-lift); }
+.card.flush { padding: 0; }
+.step { animation: popIn .45s var(--spring) both; }
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(18px) scale(.96) rotate(-1deg); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------- dropzone --------- */
+/* Marching-ants border: four dashed gradients that crawl around the edge. */
+.drop {
+  border: none;
+  border-radius: var(--radius);
+  padding: 42px 20px;
+  background:
+    linear-gradient(90deg, var(--ink) 55%, transparent 0) repeat-x 0 0 / 18px 2.5px,
+    linear-gradient(90deg, var(--ink) 55%, transparent 0) repeat-x 0 100% / 18px 2.5px,
+    linear-gradient(0deg, var(--ink) 55%, transparent 0) repeat-y 0 0 / 2.5px 18px,
+    linear-gradient(0deg, var(--ink) 55%, transparent 0) repeat-y 100% 0 / 2.5px 18px,
+    var(--bg-elev-2);
+  animation: ants 1.2s linear infinite;
+  transition: transform .3s var(--spring), background-color .2s var(--ease);
+}
+@keyframes ants {
+  to { background-position: 18px 0, -18px 100%, 0 -18px, 100% 18px, 0 0; }
+}
+.drop:hover, .drop:focus-visible { transform: translateY(-2px) rotate(-.4deg); }
+.drop.hot {
+  background:
+    linear-gradient(90deg, var(--accent) 55%, transparent 0) repeat-x 0 0 / 18px 3px,
+    linear-gradient(90deg, var(--accent) 55%, transparent 0) repeat-x 0 100% / 18px 3px,
+    linear-gradient(0deg, var(--accent) 55%, transparent 0) repeat-y 0 0 / 3px 18px,
+    linear-gradient(0deg, var(--accent) 55%, transparent 0) repeat-y 100% 0 / 3px 18px,
+    rgb(var(--sun-rgb) / .35);
+  transform: scale(1.03) rotate(.6deg);
+  animation-duration: .5s;
+}
+.drop::after {           /* a sunny blob that breathes behind the icon */
+  inset: auto;
+  left: 50%; top: 30px;
+  width: 92px; height: 92px;
+  margin-left: -46px;
+  border-radius: 46% 54% 58% 42% / 48% 42% 58% 52%;
+  background: rgb(var(--sun-rgb) / .7);
+  box-shadow: none;
+  opacity: 1;
+  animation: blobMorph 7s ease-in-out infinite;
+}
+@keyframes blobMorph {
+  0%, 100% { border-radius: 46% 54% 58% 42% / 48% 42% 58% 52%; transform: rotate(0deg) scale(1); }
+  50%      { border-radius: 58% 42% 44% 56% / 40% 58% 42% 60%; transform: rotate(25deg) scale(1.08); }
+}
+.drop.hot::after { background: rgb(var(--pink-rgb) / .7); animation-duration: 2s; }
+.drop-icon { width: 60px; height: 60px; }
+.drop-icon::before {
+  inset: 4px 11px;
+  border: var(--border);
+  border-radius: 8px 16px 8px 8px;
+  background: #fff;
+  box-shadow: var(--pop-sm);
+}
+.drop-icon::after {
+  left: 21px; right: 21px; top: 20px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 8px 0 var(--accent), 0 16px 0 var(--pink);
+  opacity: 1;
+}
+.drop strong { font-family: var(--display); font-weight: 650; font-size: 1.25rem; }
+
+/* -------------------------------------------------------- options --------- */
+.field > label, .field-label { color: var(--ink); font-weight: 700; letter-spacing: .06em; font-size: .76rem; }
+.hint { color: var(--faint); }
+.seg { gap: 10px; }
+.seg label {
+  background: #fff;
+  border: var(--border);
+  border-radius: 99px;
+  font-weight: 550;
+  box-shadow: 0 0 0 var(--ink);
+  transition: transform .25s var(--spring), box-shadow .2s var(--ease), background .2s var(--ease);
+}
+.seg label:hover { border-color: var(--ink); transform: translate(-1px, -1px); box-shadow: var(--pop-sm); }
+.seg input:checked + label {
+  background: var(--sun);
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 700;
+  transform: translate(-2px, -2px);
+  box-shadow: var(--pop-sm);
+  animation: chipPop .35s var(--spring);
+}
+.seg input:focus-visible + label { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+input[type="text"], input[type="password"] {
+  background: #fff;
+  border: var(--border);
+  color: var(--ink);
+}
+input[type="text"]:focus, input[type="password"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgb(var(--accent-rgb) / .2), var(--pop-sm);
+}
+
+/* -------------------------------------------------------- buttons --------- */
+/* Sticker buttons: they sit up off the page, then squish flat when pressed. */
+.btn {
+  font-family: var(--display);
+  font-weight: 650;
+  font-size: 1.05rem;
+  letter-spacing: 0;
+  color: #fff;
+  background: var(--accent);
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--pop-sm);
+  transition: transform .18s var(--spring), box-shadow .18s var(--ease), background .2s var(--ease);
+}
+.btn:hover { filter: none; background: var(--accent-bright); transform: translate(-2px, -2px); box-shadow: var(--pop); }
+.btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+.btn:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
+.btn:disabled { opacity: .5; transform: none; box-shadow: none; }
+.btn.ghost { background: #fff; color: var(--ink); border-color: var(--ink); box-shadow: var(--pop-sm); }
+.btn.ghost:hover { background: var(--bg-elev-2); box-shadow: var(--pop); }
+.btn.danger { background: #fff; color: var(--danger); border-color: var(--ink); box-shadow: var(--pop-sm); }
+.btn.danger:hover { background: rgb(var(--pink-rgb) / .22); box-shadow: var(--pop); }
+.btn.sm { box-shadow: var(--pop-sm); min-height: 46px; }
+.btn-row { gap: 12px; }
+
+/* ------------------------------------------------------- progress --------- */
+.prog-row { color: var(--muted); font-weight: 550; }
+.bar { height: 18px; background: #fff; border: var(--border); box-shadow: var(--pop-sm); }
+.bar > i {
+  border-radius: 99px 0 0 99px;
+  background:
+    repeating-linear-gradient(-45deg, rgb(var(--sun-rgb) / .9) 0 8px, transparent 8px 16px),
+    var(--accent);
+  background-size: 22.6px 22.6px, auto;
+  animation: stripes .7s linear infinite;
+}
+@keyframes stripes { to { background-position: 22.6px 0, 0 0; } }
+.bar::after { background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / .55) 50%, transparent 80%); }
+
+/* ------------------------------------------------------- done card -------- */
+.linkbox input { background: var(--bg-elev-2); }
+.copy-ok { color: var(--ink) !important; background: var(--mint) !important; border-color: var(--ink) !important; }
+.poof i { border: var(--border); background: #fff; box-shadow: var(--pop-sm); border-radius: 6px 12px 6px 6px; }
+.poof span { background: var(--pink); }
+.poof span:nth-child(3) { background: var(--sun); }
+.poof span:nth-child(4) { background: var(--mint); }
+
+/* Confetti: chunky, multicoloured, and it tumbles. */
+.burst span { width: 9px; height: 13px; margin: -6px 0 0 -4px; border-radius: 3px; border: 1.5px solid var(--ink); }
+.burst span:nth-child(4n+1) { background: var(--accent); }
+.burst span:nth-child(4n+2) { background: var(--sun); }
+.burst span:nth-child(4n+3) { background: var(--pink); }
+.burst span:nth-child(4n)   { background: var(--mint); border-radius: 50%; width: 10px; height: 10px; }
+.burst span { --r: 260deg; }
+.burst span:nth-child(even) { --r: -220deg; }
+
+/* --------------------------------------------------------- list ----------- */
+.list-head { padding: 18px 20px 6px; }
+.list li { border-top: 2px dashed var(--line-soft); padding: 15px 20px; }
+.list li:hover { background: var(--bg-elev-2); }
+.list .l-name { font-weight: 600; }
+.pill { border: 2px solid var(--ink); background: #fff; color: var(--ink); font-weight: 700; }
+.pill.waiting { background: var(--sun); color: var(--ink); border-color: var(--ink); }
+.pill.live { background: var(--mint); color: var(--ink); border-color: var(--ink); animation: pillWiggle 2.4s ease-in-out infinite; box-shadow: none; }
+@keyframes pillWiggle {
+  0%, 80%, 100% { transform: rotate(0); }
+  85% { transform: rotate(-6deg); }
+  90% { transform: rotate(6deg); }
+  95% { transform: rotate(-3deg); }
+}
+.pill.dead { background: var(--bg-elev-2); color: var(--faint); border-color: var(--faint); opacity: 1; }
+
+/* -------------------------------------------------------- alerts ---------- */
+.alert { border: var(--border); box-shadow: var(--pop-sm); background: #fff; color: var(--ink); }
+.alert.err { color: var(--ink); border-color: var(--ink); background: rgb(var(--pink-rgb) / .28); animation: shakeIn .45s var(--ease) both; }
+.alert.ok { color: var(--ink); border-color: var(--ink); background: rgb(var(--mint-rgb) / .3); }
+@keyframes shakeIn {
+  0% { opacity: 0; transform: translateX(0); }
+  25% { opacity: 1; transform: translateX(-6px); }
+  50% { transform: translateX(5px); }
+  75% { transform: translateX(-3px); }
+  100% { transform: none; }
+}
+
+.skel { background: linear-gradient(90deg, var(--bg-elev-2) 25%, var(--line-soft) 50%, var(--bg-elev-2) 75%); background-size: 200% 100%; }
+
+:focus-visible { outline: 3px solid var(--accent); }
+footer.foot .tiny { color: var(--faint); }
+
+/* ------------------------------------------------------ CodeKon foot ------ */
+/* On cream, the white "CODE" needs a dark sticker to sit on. */
+.ck-link {
+  align-items: center;
+  background: var(--ink);
+  border: var(--border);
+  padding: 9px 16px;
+  box-shadow: 3px 3px 0 var(--accent);
+  transition: transform .3s var(--spring), box-shadow .2s var(--ease);
+}
+.ck-link:hover { background: var(--ink); filter: none; transform: rotate(-3deg) scale(1.06); box-shadow: 5px 5px 0 var(--pink); }
+.ck-link:active { transform: scale(.97); box-shadow: 0 0 0 var(--accent); }
+.ck-by { color: #CFC6E4; }
+
+/* -------------------------------------------------------- share sheet ----- */
+.sheet { background: rgb(var(--text-rgb) / .45); }
+.sheet-card { background: var(--bg); border: var(--border); border-bottom: none; box-shadow: 0 -6px 0 var(--accent); }
+.sheet-grip { background: var(--ink); opacity: .25; }
+.sheet-close { background: #fff; border: var(--border); color: var(--ink); box-shadow: var(--pop-sm); }
+.sheet-close:hover { border-color: var(--ink); transform: rotate(90deg); transition: transform .3s var(--spring); }
+.share-opt { background: #fff; border: var(--border); color: var(--ink); font-weight: 600; transition: transform .25s var(--spring), box-shadow .2s var(--ease), background .2s var(--ease); }
+.share-opt:hover { color: var(--ink); border-color: var(--ink); background: var(--sun); transform: translate(-2px, -3px) rotate(-2deg); box-shadow: var(--pop-sm); }
+.share-opt:nth-child(even):hover { background: rgb(var(--pink-rgb) / .5); transform: translate(-2px, -3px) rotate(2deg); }
+.share-opt:active { transform: translate(2px, 2px); box-shadow: none; }
+.share-grid > .share-opt { animation: popIn .4s var(--spring) both; }
+.share-grid > .share-opt:nth-child(2) { animation-delay: .03s; }
+.share-grid > .share-opt:nth-child(3) { animation-delay: .06s; }
+.share-grid > .share-opt:nth-child(4) { animation-delay: .09s; }
+.share-grid > .share-opt:nth-child(5) { animation-delay: .12s; }
+.share-grid > .share-opt:nth-child(6) { animation-delay: .15s; }
+.share-grid > .share-opt:nth-child(7) { animation-delay: .18s; }
+.share-grid > .share-opt:nth-child(8) { animation-delay: .21s; }
+.share-grid > .share-opt:nth-child(9) { animation-delay: .24s; }
+@media (min-width: 560px) {
+  .sheet-card { border-bottom: var(--border); box-shadow: var(--pop); }
+}
+
+.toast { background: var(--sun); color: var(--ink); border: var(--border); box-shadow: var(--pop-sm); font-family: var(--display); }
+
+/* ============================================================ viewer ====== */
+body.viewer { background: var(--bg); }
+.v-bar { background: rgb(255 246 234 / .9); border-bottom: var(--border); }
+.v-bar .logo { border-width: 2px; border-radius: 11px; }
+.v-bar .v-title { color: var(--ink); font-weight: 600; }
+.ring-track { stroke: var(--line-soft); stroke-width: 4; }
+.ring-fill { stroke-width: 4.5; }
+.clock { color: var(--ink); }
+#pages canvas { border: var(--border); border-radius: 14px; box-shadow: var(--pop); }
+.page-slot .skel { border-radius: 14px; border: 2px dashed var(--line-soft); }
+.shield { background: rgb(255 246 234 / .9); }
+.gate { margin-top: 7vh; }
+
+.env .env-fill { fill: var(--sun); }
+.env .env-body { stroke: var(--ink); stroke-width: 4; }
+.env .env-flap { stroke: var(--ink); stroke-width: 4; }
+.env .env-seal { fill: var(--pink); stroke: var(--ink); stroke-width: 3; opacity: 1; animation: sealPulse 2.2s ease-in-out infinite; transform-origin: 48px 52px; }
+@keyframes sealPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+
+.ghost-ill .g-body { fill: #fff; stroke: var(--ink); stroke-width: 4; }
+.ghost-ill .g-eye { fill: var(--ink); animation: blink 4s infinite; transform-origin: center; transform-box: fill-box; }
+@keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
+.ghost-puffs b { background: var(--pink); }
+.ghost-puffs b:nth-child(2) { background: var(--sun); }
+.ghost-puffs b:nth-child(3) { background: var(--mint); }
+
+.big-ico i { border: var(--border); background: #fff; }
+.big-ico i::after { background: var(--accent); box-shadow: 0 8px 0 var(--accent), 0 16px 0 var(--pink); }
+.big-ico b { background: var(--pink); }
+.big-ico.locked::after { background: var(--sun); border: 2px solid var(--ink); box-shadow: 0 0 0 4px var(--bg-elev); }
+.big-ico.locked::before { border-color: var(--ink); }
+
+/* ===================================================== reduced motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  body::before, .logo, .drop, .drop::after, .pill.live, .env .env-seal,
+  .ghost-ill .g-eye, .share-grid > .share-opt, .alert.err {
+    animation: none !important;
+  }
+  .site-head:hover .logo, .card:hover, .btn:hover, .seg label:hover,
+  .share-opt:hover, .ck-link:hover, .drop.hot { transform: none; }
 }
