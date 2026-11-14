@@ -1,0 +1,9 @@
+node_modules/
+.vercel
+.env
+.env*.local
+.DS_Store
+*.log
+
+# vendored at install time by scripts/vendor-pdfjs.mjs
+public/vendor/pdfjs/
