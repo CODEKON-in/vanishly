@@ -146,7 +146,10 @@ async function rasterise(pdf, pageNumber) {
     canvas.height = Math.max(1, Math.floor(viewport.height));
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    // intent 'print' renders without requestAnimationFrame, which browsers
+    // pause in background tabs: with 'display' the upload hangs on
+    // "Rendering page 1" the moment the owner switches apps.
+    await page.render({ canvasContext: ctx, viewport, intent: 'print' }).promise;
 
     blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
     if (!blob) throw new Error('This browser could not export the page image.');
