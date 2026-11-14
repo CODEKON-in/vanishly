@@ -13,8 +13,9 @@ const files = ['pdf.min.mjs', 'pdf.worker.min.mjs'];
 try {
   await access(src);
 } catch {
-  console.warn('[vendor-pdfjs] pdfjs-dist not installed yet; skipping.');
-  process.exit(0);
+  console.error('[vendor-pdfjs] FATAL: pdfjs-dist is not installed (node_modules/pdfjs-dist/build missing).');
+  console.error('[vendor-pdfjs] Make sure pdfjs-dist is in "dependencies" (not devDependencies) so hosts that skip dev deps still install it.');
+  process.exit(1);
 }
 
 await mkdir(dest, { recursive: true });
