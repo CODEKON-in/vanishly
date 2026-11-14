@@ -36,7 +36,12 @@ export default wrap(async (req, res) => {
   const url = doc.blobUrls[n];
   if (!url) return fail(res, 404, 'not_found', 'No such page.');
 
-  const upstream = await fetch(url, { cache: 'no-store' });
+  // Page images live in a private Blob store: every read needs the
+  // read-write token as a bearer credential, not just the URL.
+  const upstream = await fetch(url, {
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+  });
   if (!upstream.ok) {
     return fail(res, 410, 'gone', 'This page is no longer available.');
   }
