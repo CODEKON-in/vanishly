@@ -34,6 +34,10 @@
 
   /* Cream paper + ink. */
   --bg: #FFF6EA;
+  --bg-rgb: 255 246 234;
+  --surface: #FFFFFF;
+  --on-candy: #1D1530;     /* text on sun / mint / pink, both themes */
+  --shadow-c: var(--ink);  /* colour of the sticker shadow */
   --bg-elev: #FFFFFF;
   --bg-elev-2: #FFF0DC;
   --ink: #1D1530;
@@ -78,10 +82,10 @@
   --radius-sm: 16px;
   --maxw: 600px;
   --border: 2.5px solid var(--ink);
-  --pop: 5px 5px 0 var(--ink);         /* the sticker shadow */
-  --pop-sm: 3px 3px 0 var(--ink);
+  --pop: 5px 5px 0 var(--shadow-c);         /* the sticker shadow */
+  --pop-sm: 3px 3px 0 var(--shadow-c);
   --shadow: var(--pop);
-  --shadow-lift: 7px 7px 0 var(--ink);
+  --shadow-lift: 7px 7px 0 var(--shadow-c);
   --ease: cubic-bezier(.22, .68, .32, 1);
   --spring: cubic-bezier(.34, 1.56, .64, 1);
 
@@ -1253,7 +1257,7 @@ a { color: var(--accent-deep); }
   inset: 4px 11px;
   border: var(--border);
   border-radius: 8px 16px 8px 8px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--pop-sm);
 }
 .drop-icon::after {
@@ -1271,7 +1275,7 @@ a { color: var(--accent-deep); }
 .hint { color: var(--faint); }
 .seg { gap: 10px; }
 .seg label {
-  background: #fff;
+  background: var(--surface);
   border: var(--border);
   border-radius: 99px;
   font-weight: 550;
@@ -1291,7 +1295,7 @@ a { color: var(--accent-deep); }
 .seg input:focus-visible + label { outline: 3px solid var(--accent); outline-offset: 3px; }
 
 input[type="text"], input[type="password"] {
-  background: #fff;
+  background: var(--surface);
   border: var(--border);
   color: var(--ink);
 }
@@ -1318,16 +1322,16 @@ input[type="text"]:focus, input[type="password"]:focus {
 .btn:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
 .btn:focus-visible { outline: 3px solid var(--sun); outline-offset: 3px; }
 .btn:disabled { opacity: .5; transform: none; box-shadow: none; }
-.btn.ghost { background: #fff; color: var(--ink); border-color: var(--ink); box-shadow: var(--pop-sm); }
+.btn.ghost { background: var(--surface); color: var(--ink); border-color: var(--ink); box-shadow: var(--pop-sm); }
 .btn.ghost:hover { background: var(--bg-elev-2); box-shadow: var(--pop); }
-.btn.danger { background: #fff; color: var(--danger); border-color: var(--ink); box-shadow: var(--pop-sm); }
+.btn.danger { background: var(--surface); color: var(--danger); border-color: var(--ink); box-shadow: var(--pop-sm); }
 .btn.danger:hover { background: rgb(var(--pink-rgb) / .22); box-shadow: var(--pop); }
 .btn.sm { box-shadow: var(--pop-sm); min-height: 46px; }
 .btn-row { gap: 12px; }
 
 /* ------------------------------------------------------- progress --------- */
 .prog-row { color: var(--muted); font-weight: 550; }
-.bar { height: 18px; background: #fff; border: var(--border); box-shadow: var(--pop-sm); }
+.bar { height: 18px; background: var(--surface); border: var(--border); box-shadow: var(--pop-sm); }
 .bar > i {
   border-radius: 99px 0 0 99px;
   background:
@@ -1342,7 +1346,7 @@ input[type="text"]:focus, input[type="password"]:focus {
 /* ------------------------------------------------------- done card -------- */
 .linkbox input { background: var(--bg-elev-2); }
 .copy-ok { color: var(--ink) !important; background: var(--mint) !important; border-color: var(--ink) !important; }
-.poof i { border: var(--border); background: #fff; box-shadow: var(--pop-sm); border-radius: 6px 12px 6px 6px; }
+.poof i { border: var(--border); background: var(--surface); box-shadow: var(--pop-sm); border-radius: 6px 12px 6px 6px; }
 .poof span { background: var(--pink); }
 .poof span:nth-child(3) { background: var(--sun); }
 .poof span:nth-child(4) { background: var(--mint); }
@@ -1361,7 +1365,7 @@ input[type="text"]:focus, input[type="password"]:focus {
 .list li { border-top: 2px dashed var(--line-soft); padding: 15px 20px; }
 .list li:hover { background: var(--bg-elev-2); }
 .list .l-name { font-weight: 600; }
-.pill { border: 2px solid var(--ink); background: #fff; color: var(--ink); font-weight: 700; }
+.pill { border: 2px solid var(--ink); background: var(--surface); color: var(--ink); font-weight: 700; }
 .pill.waiting { background: var(--sun); color: var(--ink); border-color: var(--ink); }
 .pill.live { background: var(--mint); color: var(--ink); border-color: var(--ink); animation: pillWiggle 2.4s ease-in-out infinite; box-shadow: none; }
 @keyframes pillWiggle {
@@ -1373,7 +1377,7 @@ input[type="text"]:focus, input[type="password"]:focus {
 .pill.dead { background: var(--bg-elev-2); color: var(--faint); border-color: var(--faint); opacity: 1; }
 
 /* -------------------------------------------------------- alerts ---------- */
-.alert { border: var(--border); box-shadow: var(--pop-sm); background: #fff; color: var(--ink); }
+.alert { border: var(--border); box-shadow: var(--pop-sm); background: var(--surface); color: var(--ink); }
 .alert.err { color: var(--ink); border-color: var(--ink); background: rgb(var(--pink-rgb) / .28); animation: shakeIn .45s var(--ease) both; }
 .alert.ok { color: var(--ink); border-color: var(--ink); background: rgb(var(--mint-rgb) / .3); }
 @keyframes shakeIn {
@@ -1407,9 +1411,9 @@ footer.foot .tiny { color: var(--faint); }
 .sheet { background: rgb(var(--text-rgb) / .45); }
 .sheet-card { background: var(--bg); border: var(--border); border-bottom: none; box-shadow: 0 -6px 0 var(--accent); }
 .sheet-grip { background: var(--ink); opacity: .25; }
-.sheet-close { background: #fff; border: var(--border); color: var(--ink); box-shadow: var(--pop-sm); }
+.sheet-close { background: var(--surface); border: var(--border); color: var(--ink); box-shadow: var(--pop-sm); }
 .sheet-close:hover { border-color: var(--ink); transform: rotate(90deg); transition: transform .3s var(--spring); }
-.share-opt { background: #fff; border: var(--border); color: var(--ink); font-weight: 600; transition: transform .25s var(--spring), box-shadow .2s var(--ease), background .2s var(--ease); }
+.share-opt { background: var(--surface); border: var(--border); color: var(--ink); font-weight: 600; transition: transform .25s var(--spring), box-shadow .2s var(--ease), background .2s var(--ease); }
 .share-opt:hover { color: var(--ink); border-color: var(--ink); background: var(--sun); transform: translate(-2px, -3px) rotate(-2deg); box-shadow: var(--pop-sm); }
 .share-opt:nth-child(even):hover { background: rgb(var(--pink-rgb) / .5); transform: translate(-2px, -3px) rotate(2deg); }
 .share-opt:active { transform: translate(2px, 2px); box-shadow: none; }
@@ -1430,7 +1434,7 @@ footer.foot .tiny { color: var(--faint); }
 
 /* ============================================================ viewer ====== */
 body.viewer { background: var(--bg); }
-.v-bar { background: rgb(255 246 234 / .9); border-bottom: var(--border); }
+.v-bar { background: rgb(var(--bg-rgb) / .9); border-bottom: var(--border); }
 .v-bar .logo { border-width: 2px; border-radius: 11px; }
 .v-bar .v-title { color: var(--ink); font-weight: 600; }
 .ring-track { stroke: var(--line-soft); stroke-width: 4; }
@@ -1438,7 +1442,7 @@ body.viewer { background: var(--bg); }
 .clock { color: var(--ink); }
 #pages canvas { border: var(--border); border-radius: 14px; box-shadow: var(--pop); }
 .page-slot .skel { border-radius: 14px; border: 2px dashed var(--line-soft); }
-.shield { background: rgb(255 246 234 / .9); }
+.shield { background: rgb(var(--bg-rgb) / .9); }
 .gate { margin-top: 7vh; }
 
 .env .env-fill { fill: var(--sun); }
@@ -1447,14 +1451,14 @@ body.viewer { background: var(--bg); }
 .env .env-seal { fill: var(--pink); stroke: var(--ink); stroke-width: 3; opacity: 1; animation: sealPulse 2.2s ease-in-out infinite; transform-origin: 48px 52px; }
 @keyframes sealPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
 
-.ghost-ill .g-body { fill: #fff; stroke: var(--ink); stroke-width: 4; }
+.ghost-ill .g-body { fill: var(--surface); stroke: var(--ink); stroke-width: 4; }
 .ghost-ill .g-eye { fill: var(--ink); animation: blink 4s infinite; transform-origin: center; transform-box: fill-box; }
 @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.1); } }
 .ghost-puffs b { background: var(--pink); }
 .ghost-puffs b:nth-child(2) { background: var(--sun); }
 .ghost-puffs b:nth-child(3) { background: var(--mint); }
 
-.big-ico i { border: var(--border); background: #fff; }
+.big-ico i { border: var(--border); background: var(--surface); }
 .big-ico i::after { background: var(--accent); box-shadow: 0 8px 0 var(--accent), 0 16px 0 var(--pink); }
 .big-ico b { background: var(--pink); }
 .big-ico.locked::after { background: var(--sun); border: 2px solid var(--ink); box-shadow: 0 0 0 4px var(--bg-elev); }
@@ -1469,3 +1473,163 @@ body.viewer { background: var(--bg); }
   .site-head:hover .logo, .card:hover, .btn:hover, .seg label:hover,
   .share-opt:hover, .ck-link:hover, .drop.hot { transform: none; }
 }
+
+/* ==========================================================================
+   SHERBET NIGHT — dark theme. Same candy, grape-dark paper, light outlines,
+   violet sticker shadows. Set by /js/theme.js on <html data-theme="dark">.
+   ========================================================================== */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #15101F;
+  --bg-rgb: 21 16 31;
+  --surface: #221A35;
+  --bg-elev: #221A35;
+  --bg-elev-2: #2C2244;
+  --ink: #EFE8FF;            /* outlines + strong text */
+  --line: #EFE8FF;
+  --line-soft: #3D3159;
+  --text: #F4EEFF;           /* 15:1 on --bg */
+  --text-rgb: 244 238 255;
+  --muted: #C2B6DE;          /* 9:1 on --bg  */
+  --faint: #A497C4;          /* 6.6:1 on --bg */
+  --accent: #8B73FF;         /* 5.4:1 on --bg */
+  --accent-rgb: 139 115 255;
+  --accent-bright: #9D88FF;
+  --accent-deep: #B4A4FF;    /* used for links: lighter on dark */
+  --shadow-c: #6A4CFF;       /* the sticker shadow glows violet at night */
+  --ok: #4BE3B0;
+  --warn: #FFD23F;
+  --danger: #FF6B81;
+  --danger-rgb: 255 107 129;
+}
+:root[data-theme="dark"] body::before {
+  background:
+    radial-gradient(38% 30% at 12% 14%, rgb(var(--accent-rgb) / .30), transparent 70%),
+    radial-gradient(34% 28% at 90% 20%, rgb(var(--pink-rgb) / .16), transparent 70%),
+    radial-gradient(40% 32% at 78% 92%, rgb(var(--sun-rgb) / .10), transparent 70%),
+    radial-gradient(30% 26% at 8% 86%, rgb(var(--mint-rgb) / .14), transparent 70%);
+}
+:root[data-theme="dark"] body::after { mix-blend-mode: soft-light; opacity: .06; }
+
+/* Text sitting on candy colours stays dark in both themes. */
+:root[data-theme="dark"] ::selection,
+:root[data-theme="dark"] .seg input:checked + label,
+:root[data-theme="dark"] .copy-ok,
+:root[data-theme="dark"] .pill.waiting,
+:root[data-theme="dark"] .pill.live,
+:root[data-theme="dark"] .share-opt:hover,
+:root[data-theme="dark"] .toast { color: var(--on-candy) !important; }
+:root[data-theme="dark"] .seg input:checked + label,
+:root[data-theme="dark"] .pill.waiting,
+:root[data-theme="dark"] .pill.live,
+:root[data-theme="dark"] .toast { border-color: var(--on-candy); }
+:root[data-theme="dark"] .share-opt:nth-child(even):hover { background: var(--pink); }
+:root[data-theme="dark"] .alert.err { background: rgb(var(--pink-rgb) / .18); }
+:root[data-theme="dark"] .alert.ok { background: rgb(var(--mint-rgb) / .16); }
+:root[data-theme="dark"] .drop.hot { background-color: rgb(var(--accent-rgb) / .22); }
+:root[data-theme="dark"] .drop::after { background: rgb(var(--accent-rgb) / .45); }
+:root[data-theme="dark"] .drop-icon::before,
+:root[data-theme="dark"] .poof i { background: var(--bg-elev-2); }
+:root[data-theme="dark"] .ck-link { background: #0B0814; border-color: #0B0814; }
+:root[data-theme="dark"] .ck-link:hover { background: #0B0814; }
+:root[data-theme="dark"] .env .env-body,
+:root[data-theme="dark"] .env .env-flap { stroke: var(--on-candy); }
+:root[data-theme="dark"] .env .env-seal { stroke: var(--on-candy); }
+:root[data-theme="dark"] .burst span { border-color: var(--on-candy); }
+:root[data-theme="dark"] .bar > i {
+  background:
+    repeating-linear-gradient(-45deg, rgb(var(--sun-rgb) / .85) 0 8px, transparent 8px 16px),
+    var(--accent);
+  background-size: 22.6px 22.6px, auto;
+}
+:root[data-theme="dark"] #pages canvas { border-color: #0B0814; }
+
+/* ------------------------------------------------------- theme toggle ----- */
+.theme-toggle {
+  position: fixed;
+  top: calc(16px + var(--safe-t));
+  right: max(16px, var(--safe-r));
+  z-index: 60;
+  width: 50px; height: 50px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--sun);
+  color: var(--on-candy);
+  box-shadow: var(--pop-sm);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .3s var(--spring), box-shadow .2s var(--ease), background .4s var(--ease);
+}
+.theme-toggle:hover { transform: translate(-2px, -2px) rotate(-10deg); box-shadow: var(--pop); }
+.theme-toggle:active { transform: translate(3px, 3px) scale(.92); box-shadow: 0 0 0 var(--shadow-c); }
+.theme-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+:root[data-theme="dark"] .theme-toggle { background: #2C2244; color: var(--sun); border-color: var(--ink); }
+body.viewer .theme-toggle { top: auto; bottom: calc(18px + var(--safe-b)); width: 44px; height: 44px; }
+
+/* Sun ↔ moon: the sun's core grows into a moon, a "bite" slides in, rays tuck away. */
+.tt-ico { width: 26px; height: 26px; overflow: visible; }
+.tt-core { fill: currentColor; transition: r .5s var(--spring); }
+.tt-bite { transition: cx .5s var(--spring), cy .5s var(--spring); }
+.tt-rays { stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; transform-origin: 12px 12px; transition: transform .55s var(--spring), opacity .35s var(--ease); }
+.tt-ico { transition: transform .6s var(--spring); }
+:root[data-theme="dark"] .tt-ico { transform: rotate(-40deg); }
+:root[data-theme="dark"] .tt-core { r: 9px; }
+:root[data-theme="dark"] .tt-bite { cx: 17px; cy: 7px; }
+:root[data-theme="dark"] .tt-rays { transform: rotate(90deg) scale(.3); opacity: 0; }
+
+/* A pop of little stars every time it flips. */
+.theme-toggle .tt-spark {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 8px; height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 2px;
+  background: var(--pink);
+  opacity: 0;
+  pointer-events: none;
+}
+.theme-toggle .tt-spark:nth-of-type(2) { background: var(--mint); }
+.theme-toggle .tt-spark:nth-of-type(3) { background: var(--accent); }
+.theme-toggle .tt-spark:nth-of-type(4) { background: var(--sun); border: 1.5px solid var(--on-candy); }
+.theme-toggle .tt-spark:nth-of-type(5) { background: var(--pink); border-radius: 50%; }
+.theme-toggle .tt-spark:nth-of-type(6) { background: var(--mint); border-radius: 50%; }
+.theme-toggle.flip .tt-spark { animation: ttSpark .7s cubic-bezier(.2, .7, .3, 1) both; }
+.theme-toggle .tt-spark:nth-of-type(1) { --tx: -34px; --ty: -22px; }
+.theme-toggle .tt-spark:nth-of-type(2) { --tx:  30px; --ty: -26px; }
+.theme-toggle .tt-spark:nth-of-type(3) { --tx: -26px; --ty:  30px; }
+.theme-toggle .tt-spark:nth-of-type(4) { --tx:  34px; --ty:  20px; }
+.theme-toggle .tt-spark:nth-of-type(5) { --tx:   2px; --ty: -40px; }
+.theme-toggle .tt-spark:nth-of-type(6) { --tx:  -2px; --ty:  40px; }
+@keyframes ttSpark {
+  0%   { opacity: 0; transform: translate(0, 0) scale(.3) rotate(0); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(.2) rotate(200deg); }
+}
+.theme-toggle.flip { animation: ttBoing .6s var(--spring); }
+@keyframes ttBoing {
+  0% { transform: scale(1); } 30% { transform: scale(.8) rotate(-20deg); }
+  60% { transform: scale(1.18) rotate(15deg); } 100% { transform: scale(1) rotate(0); }
+}
+
+/* The new theme spreads out of the button as a growing circle (JS drives the
+   clip-path; here we just stop the default cross-fade). */
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
+/* Browsers without View Transitions get a soft colour wash instead. */
+html.theme-fading body, html.theme-fading body * { transition: background-color .45s var(--ease), color .45s var(--ease), border-color .45s var(--ease), fill .45s var(--ease), stroke .45s var(--ease) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-toggle, .theme-toggle.flip, .theme-toggle .tt-spark, .tt-ico, .tt-core, .tt-bite, .tt-rays { animation: none !important; transition: none !important; }
+  .theme-toggle:hover { transform: none; }
+}
+
+.site-head { padding-right: 58px; }
+
+/* White text on buttons needs the deeper violet at night (5.6:1). */
+:root[data-theme="dark"] .btn:not(.ghost):not(.danger) { background: #6A4CFF; }
+:root[data-theme="dark"] .btn:not(.ghost):not(.danger):hover { background: #7A5EFF; }
