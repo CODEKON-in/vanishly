@@ -1,6 +1,6 @@
-import * as pdfjsLib from '/vendor/pdfjs/pdf.min.mjs';
+import * as pdfjsLib from '/vendor/pdfjs/pdf.min.mjs?v=2';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs?v=2';
 
 const LIMITS = {
   maxPages: 30,
