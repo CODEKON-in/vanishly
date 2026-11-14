@@ -43,7 +43,12 @@
 <!-- STATE: landing gate -->
 <main class="wrap gate" id="state-gate" hidden>
   <div class="card center stack">
-    <div class="big-ico locked" aria-hidden="true"><i></i></div>
+    <svg class="env" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
+      <rect class="env-fill" x="10" y="26" width="76" height="52" rx="8"></rect>
+      <rect class="env-body" x="10" y="26" width="76" height="52" rx="8"></rect>
+      <path class="env-flap" d="M12 30l33 25a6 6 0 0 0 6 0l33-25"></path>
+      <circle class="env-seal" cx="48" cy="52" r="9"></circle>
+    </svg>
     <h1 id="gate-h">Someone shared a document with you</h1>
     <p class="sub" id="gate-copy"></p>
     <div id="pw-field" class="field" hidden>
@@ -64,9 +69,14 @@
 <!-- STATE: expired / gone -->
 <main class="wrap gate" id="state-expired" hidden>
   <div class="card center stack">
-    <div class="big-ico" aria-hidden="true"><i></i><b></b><b></b><b></b><b></b></div>
-    <h1>This link has expired</h1>
-    <p class="sub">The document it pointed to has been permanently deleted. Ask the sender for a new link.</p>
+    <svg class="ghost-ill" viewBox="0 0 96 96" aria-hidden="true" focusable="false">
+      <path class="g-body" d="M22 54a26 26 0 0 1 52 0v28l-8.5-7-8.5 7-9-7-9 7-8.5-7L22 82Z"></path>
+      <circle class="g-eye" cx="39" cy="50" r="4.5"></circle>
+      <circle class="g-eye" cx="57" cy="50" r="4.5"></circle>
+    </svg>
+    <div class="ghost-puffs" aria-hidden="true"><b></b><b></b><b></b></div>
+    <h1>This document has vanished</h1>
+    <p class="sub">It has been permanently deleted. Ask the sender for a new link.</p>
     <a class="btn ghost" href="/">Send your own vanishing PDF</a>
   </div>
 </main>

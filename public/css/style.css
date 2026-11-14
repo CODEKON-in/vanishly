@@ -32,7 +32,7 @@
   color-scheme: dark;
 
   /* Ink-violet base, electric lime accent. */
-  --bg: #0B0714;
+  --bg: #0A0710;
   --bg-elev: #150D24;
   --bg-elev-2: #1C1230;
   --line: #2B1F45;
@@ -43,19 +43,21 @@
   --muted: #B3A6D1;         /* 8.6:1 on --bg */
   --faint: #9385BA;         /* 6.0:1 on --bg */
 
-  --accent: #D7FF3E;        /* 15:1 on --bg  */
-  --accent-rgb: 215 255 62;
-  --accent-bright: #E6FF7A;
-  --accent-deep: #A6E52B;
-  --accent-ink: #120B02;    /* text ON lime  */
+  --accent: #C6FF3D;        /* 15.6:1 on --bg */
+  --accent-rgb: 198 255 61;
+  --accent-bright: #D8FF78;
+  --accent-deep: #A5E31E;
+  --accent-ink: #0D1300;    /* text ON lime  */
 
-  --violet: #A78BFA;
+  --violet: #A78BFA;        /* soft secondary */
   --violet-rgb: 167 139 250;
 
   --ok: #3DF0C0;
   --warn: #FFC24B;
-  --danger: #FF6B8A;
-  --danger-rgb: 255 107 138;
+  --amber: #FFC24B;
+  --amber-rgb: 255 194 75;
+  --danger: #FF5D73;
+  --danger-rgb: 255 93 115;
 
   --display: 'Bricolage', 'Segoe UI', system-ui, sans-serif;
   --body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -176,9 +178,9 @@ a { color: var(--accent); }
 .card.flush { padding: 0; overflow: hidden; }
 
 /* Step transitions: re-run every time a section is un-hidden. */
-.step { animation: stepIn .4s var(--ease) both; }
+.step { animation: stepIn .3s cubic-bezier(.16, .84, .44, 1) both; }
 @keyframes stepIn {
-  from { opacity: 0; transform: translateY(14px) scale(.985); }
+  from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: none; }
 }
 
@@ -196,7 +198,7 @@ a { color: var(--accent); }
 .drop.hot {
   border-color: var(--accent);
   background: radial-gradient(130% 100% at 50% 0%, rgb(var(--accent-rgb) / .2), transparent 72%), var(--bg-elev-2);
-  transform: scale(1.012);
+  transform: scale(1.02) translateY(-2px);
 }
 .drop-icon {
   width: 54px; height: 54px;
@@ -884,8 +886,8 @@ body.viewer { background: #080411; }
   pointer-events: none;
 }
 @keyframes dissolveOut {
-  0%   { opacity: 1; filter: blur(0); transform: none; }
-  100% { opacity: 0; filter: blur(12px); transform: translateY(-18px) scale(.97); }
+  0%   { opacity: 1; filter: blur(0); transform: none; letter-spacing: normal; }
+  100% { opacity: 0; filter: blur(12px); transform: translateY(-14px) scale(.96); letter-spacing: .18em; }
 }
 
 @media (min-width: 560px) {
@@ -902,3 +904,217 @@ body.viewer { background: #080411; }
 }
 /* The padlock reads better without the document's text lines behind it. */
 .big-ico.locked i::after { display: none; }
+
+/* ==========================================================================
+   Motion pass — the "things vanish" motif, applied consistently.
+   Everything here animates transform / opacity / filter only.
+   ========================================================================== */
+
+/* ---- dropzone: idle breathing glow, lift on dragover, bounce on drop ---- */
+.drop { position: relative; isolation: isolate; }
+.drop::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  box-shadow: 0 0 34px rgb(var(--accent-rgb) / .35);
+  opacity: .25;
+  animation: dropBreathe 4.2s var(--ease) infinite;
+}
+@keyframes dropBreathe {
+  0%, 100% { opacity: .18; transform: scale(.985); }
+  50%      { opacity: .5;  transform: scale(1.005); }
+}
+.drop.hot::after { opacity: 1; animation: none; }
+.drop-icon.bounce::before { animation: iconBounce .55s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes iconBounce {
+  0%   { transform: translateY(-14px) scale(.86); }
+  55%  { transform: translateY(3px) scale(1.06); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+/* ---- option chips spring when selected ---- */
+.seg input:checked + label { animation: chipPop .26s cubic-bezier(.3, 1.5, .5, 1); }
+@keyframes chipPop {
+  0%   { transform: scale(.96); }
+  60%  { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+/* ---- progress: a highlight sweeping along the fill ---- */
+.bar { position: relative; overflow: hidden; }
+.bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / .35) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: sweep 1.6s var(--ease) infinite;
+}
+@keyframes sweep { to { transform: translateX(100%); } }
+
+/* ---- done: the document poofs, then sparks scatter (once) ---- */
+.burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.burst span {
+  position: absolute;
+  left: 50%; top: 46%;
+  width: 6px; height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0;
+}
+#step-done:not([hidden]) .burst span { animation: spark 1.15s cubic-bezier(.2, .7, .3, 1) both; }
+@keyframes spark {
+  0%   { opacity: 0; transform: translate(0, 0) scale(.3) rotate(0deg); }
+  18%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(.2) rotate(var(--r, 90deg)); }
+}
+.burst span:nth-child(1)  { --tx:  52px; --ty: -34px; animation-delay: .30s; }
+.burst span:nth-child(2)  { --tx: -48px; --ty: -30px; animation-delay: .34s; }
+.burst span:nth-child(3)  { --tx:  26px; --ty: -58px; animation-delay: .32s; background: var(--violet); }
+.burst span:nth-child(4)  { --tx: -22px; --ty: -62px; animation-delay: .38s; }
+.burst span:nth-child(5)  { --tx:  68px; --ty:  -6px; animation-delay: .36s; }
+.burst span:nth-child(6)  { --tx: -66px; --ty:  -2px; animation-delay: .40s; background: var(--violet); }
+.burst span:nth-child(7)  { --tx:  14px; --ty: -72px; animation-delay: .44s; }
+.burst span:nth-child(8)  { --tx: -10px; --ty: -70px; animation-delay: .31s; }
+.burst span:nth-child(9)  { --tx:  40px; --ty:  26px; animation-delay: .42s; }
+.burst span:nth-child(10) { --tx: -38px; --ty:  28px; animation-delay: .46s; background: var(--violet); }
+.burst span:nth-child(11) { --tx:  60px; --ty: -52px; animation-delay: .48s; }
+.burst span:nth-child(12) { --tx: -58px; --ty: -48px; animation-delay: .35s; }
+.burst span:nth-child(13) { --tx:   4px; --ty:  38px; animation-delay: .50s; }
+.burst span:nth-child(14) { --tx:  30px; --ty: -14px; animation-delay: .52s; background: var(--violet); }
+.burst span:nth-child(15) { --tx: -30px; --ty: -12px; animation-delay: .39s; }
+.burst span:nth-child(16) { --tx:  -4px; --ty: -88px; animation-delay: .54s; }
+
+/* ---- copy button morph ---- */
+.copy-ok { animation: copyPop .3s cubic-bezier(.3, 1.5, .5, 1); }
+@keyframes copyPop {
+  0% { transform: scale(.9); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+/* ---- status pills ---- */
+.pill.waiting { animation: pillPulse 2.4s var(--ease) infinite; }
+@keyframes pillPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .55; }
+}
+.pill.live {
+  box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / .35);
+  animation: pillGlow 2.2s var(--ease) infinite;
+}
+@keyframes pillGlow {
+  0%, 100% { box-shadow: 0 0 10px rgb(var(--accent-rgb) / .18); }
+  50%      { box-shadow: 0 0 20px rgb(var(--accent-rgb) / .42); }
+}
+.pill.dead { opacity: .6; }
+
+/* ========================================================== viewer ======== */
+
+/* ---- gate: sealed envelope that floats, button that wiggles ---- */
+.env {
+  width: 104px; height: 104px;
+  display: block;
+  margin: 0 auto 20px;
+  animation: float 5s var(--ease) infinite;
+}
+.env .env-body { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linejoin: round; }
+.env .env-flap { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.env .env-fill { fill: rgb(var(--accent-rgb) / .12); }
+.env .env-seal { fill: var(--accent); opacity: .9; }
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50%      { transform: translateY(-7px) rotate(1deg); }
+}
+#state-gate:not([hidden]) #open-btn { animation: wiggle 5s var(--ease) 1.5s infinite; }
+@keyframes wiggle {
+  0%, 86%, 100% { transform: none; }
+  89% { transform: translateX(-4px) rotate(-.8deg); }
+  92% { transform: translateX(4px) rotate(.8deg); }
+  95% { transform: translateX(-2px) rotate(-.3deg); }
+}
+
+/* ---- pages fade up, staggered ---- */
+.page-in { animation: pageUp .45s var(--ease) both; animation-delay: var(--d, 0ms); }
+@keyframes pageUp {
+  from { opacity: 0; transform: translateY(16px) scale(.99); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- countdown stages ---- */
+.clock-wrap.warn .ring-fill { stroke: var(--amber); }
+.clock-wrap.warn .clock { color: var(--amber); }
+.clock-wrap.crit .ring-fill { stroke: var(--danger); }
+.clock-wrap.crit .clock { color: var(--danger); }
+.clock-wrap.shake { animation: tick 1s steps(2, end) infinite; }
+@keyframes tick {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  25%      { transform: translateX(-1.5px) rotate(-2deg); }
+  75%      { transform: translateX(1.5px) rotate(2deg); }
+}
+
+/* ---- the vanish ---- */
+/* While a page is disintegrating it must have nothing behind it. */
+.dissolving-page { background: transparent !important; box-shadow: none !important; }
+.fading { animation: pageFade .5s var(--ease) both; }
+@keyframes pageFade {
+  to { opacity: 0; transform: translateY(-10px) scale(.98); filter: blur(6px); }
+}
+#state-expired:not([hidden]) .card { animation: expiredIn .5s var(--ease) .15s both; }
+@keyframes expiredIn {
+  from { opacity: 0; transform: translateY(14px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---- the ghost (expired + 404) ---- */
+.ghost-ill {
+  width: 96px; height: 96px;
+  display: block;
+  margin: 0 auto 6px;
+  animation: float 4.2s var(--ease) infinite;
+}
+.ghost-ill .g-body { fill: rgb(var(--accent-rgb) / .14); stroke: var(--accent); stroke-width: 4; stroke-linejoin: round; }
+.ghost-ill .g-eye { fill: var(--accent); }
+.ghost-puffs {
+  position: relative;
+  height: 26px;
+  margin-bottom: 10px;
+}
+.ghost-puffs b {
+  position: absolute;
+  left: 50%; top: 4px;
+  width: 8px; height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: rgb(var(--accent-rgb) / .5);
+  animation: puff 3.4s var(--ease) infinite;
+}
+.ghost-puffs b:nth-child(2) { --px: -26px; animation-delay: .5s; }
+.ghost-puffs b:nth-child(3) { --px:  24px; animation-delay: 1s; }
+@keyframes puff {
+  0%   { opacity: 0; transform: translate(0, 0) scale(.4); }
+  40%  { opacity: .7; transform: translate(var(--px, 0), -14px) scale(1); }
+  100% { opacity: 0; transform: translate(calc(var(--px, 0px) * 1.7), -30px) scale(.2); }
+}
+
+/* ======================================================= reduced motion === */
+@media (prefers-reduced-motion: reduce) {
+  .drop::after, .burst span, .pill.waiting, .pill.live, .env, .ghost-ill, .ghost-puffs b,
+  .clock-wrap.shake, #state-gate:not([hidden]) #open-btn, .bar::after, .bar > i,
+  .wordmark .fade {
+    animation: none !important;
+  }
+  .drop::after { opacity: .3; }
+  .burst { display: none; }
+  .page-in { animation: none; }
+  .fading, .dissolving { animation: fadeOutPlain .25s linear both; }
+  @keyframes fadeOutPlain { to { opacity: 0; } }
+}

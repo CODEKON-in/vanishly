@@ -34,6 +34,11 @@ function show(step) {
   step.hidden = false;
 }
 
+/** One place to ask whether the user wants motion. */
+function reduceMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+}
+
 function fmtBytes(b) {
   if (b < 1024) return `${b} B`;
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
@@ -428,8 +433,10 @@ function renderList() {
       if (entry.state !== 'expired') {
         try { await api('/api/delete', { json: { id: entry.id, ownerToken: entry.ownerToken } }); } catch { /* ignore */ }
       }
-      forget(entry.id);
-      renderList();
+      // Let the row come apart before it goes, like everything else here.
+      li.classList.add('dissolving');
+      const gone = () => { forget(entry.id); renderList(); };
+      if (reduceMotion()) gone(); else setTimeout(gone, 420);
     });
 
     li.append(main, pill, kill);
@@ -471,6 +478,12 @@ for (const type of ['dragleave', 'drop']) {
 }
 el.drop.addEventListener('drop', (e) => {
   e.preventDefault();
+  const icon = el.drop.querySelector('.drop-icon');
+  if (icon) {
+    icon.classList.remove('bounce');
+    void icon.offsetWidth;        // restart the animation on a repeat drop
+    icon.classList.add('bounce');
+  }
   pick(e.dataTransfer?.files?.[0]);
 });
 window.addEventListener('dragover', (e) => e.preventDefault());
@@ -496,7 +509,7 @@ el.again.addEventListener('click', () => {
 
 el.copy.addEventListener('click', async () => {
   await copyLink();
-  el.copy.textContent = 'Copied';
+  el.copy.textContent = '\u2713 Copied';
   el.copy.classList.add('copy-ok');
   setTimeout(() => { el.copy.textContent = 'Copy'; el.copy.classList.remove('copy-ok'); }, 1600);
 });

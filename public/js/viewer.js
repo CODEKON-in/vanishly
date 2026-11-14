@@ -42,6 +42,10 @@ function gateError(msg) {
   el.gateError.hidden = false;
 }
 
+function reduceMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+}
+
 function mmss(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -98,12 +102,14 @@ async function paintPage(slot, n) {
   canvas.width = bitmap.width;
   canvas.height = bitmap.height;
   canvas.setAttribute('aria-label', `Page ${n + 1}`);
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const ctx = canvas.getContext('2d'); // alpha channel: the vanish clears to transparent
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close?.();
 
   watermarkCanvas(ctx, canvas.width, canvas.height, session.watermark);
 
+  canvas.classList.add('page-in');
+  canvas.style.setProperty('--d', `${Math.min(n, 8) * 60}ms`); // staggered fade-up
   slot.textContent = '';
   slot.append(canvas);
 }
@@ -119,6 +125,86 @@ function wipe() {
   session = null;
 }
 
+
+/* --------------------------------------------------------------- the vanish */
+/**
+ * Disintegrates the real page pixels into drifting particles over ~1.2s.
+ * Only the pages actually on screen are tiled (that's the expensive part);
+ * the rest simply fade, so a 30-page document costs the same as a 2-page one.
+ */
+function dissolvePages(done) {
+  const canvases = [...el.pages.querySelectorAll('canvas')];
+  if (!canvases.length || reduceMotion()) {
+    canvases.forEach((c) => c.classList.add('fading'));
+    setTimeout(done, reduceMotion() ? 260 : 120);
+    return;
+  }
+
+  const vh = window.innerHeight;
+  const onScreen = canvases.filter((c) => {
+    const r = c.getBoundingClientRect();
+    return r.bottom > -40 && r.top < vh + 40;
+  }).slice(0, 2);
+
+  canvases.filter((c) => !onScreen.includes(c)).forEach((c) => c.classList.add('fading'));
+  if (!onScreen.length) { setTimeout(done, 300); return; }
+
+  const parts = onScreen.map((c) => {
+    const snap = document.createElement('canvas');
+    snap.width = c.width;
+    snap.height = c.height;
+    snap.getContext('2d').drawImage(c, 0, 0);
+    c.classList.add('dissolving-page');
+
+    const cols = 14;
+    const rows = Math.max(6, Math.round((cols * c.height) / c.width));
+    const cells = [];
+    for (let y = 0; y < rows; y += 1) {
+      for (let x = 0; x < cols; x += 1) {
+        cells.push({
+          x,
+          y,
+          dx: (Math.random() - 0.5) * c.width * 0.55,
+          dy: -(Math.random() * c.height * 0.4 + c.height * 0.06),
+          rot: (Math.random() - 0.5) * 1.4,
+          delay: Math.random() * 0.34,
+        });
+      }
+    }
+    return { ctx: c.getContext('2d'), w: c.width, h: c.height, snap, cells, cw: c.width / cols, ch: c.height / rows };
+  });
+
+  const DURATION = 1200;
+  const start = performance.now();
+
+  const frame = (now) => {
+    const t = Math.min(1, (now - start) / DURATION);
+    for (const p of parts) {
+      p.ctx.clearRect(0, 0, p.w, p.h);
+      for (const cell of p.cells) {
+        const local = (t - cell.delay) / (1 - cell.delay);
+        if (local <= 0) {
+          p.ctx.drawImage(p.snap, cell.x * p.cw, cell.y * p.ch, p.cw, p.ch,
+            cell.x * p.cw, cell.y * p.ch, p.cw, p.ch);
+          continue;
+        }
+        if (local >= 1) continue;
+        const e = local * local;
+        p.ctx.save();
+        p.ctx.globalAlpha = 1 - local;
+        p.ctx.translate(cell.x * p.cw + p.cw / 2 + cell.dx * e, cell.y * p.ch + p.ch / 2 + cell.dy * e);
+        p.ctx.rotate(cell.rot * e);
+        p.ctx.scale(1 - local * 0.45, 1 - local * 0.45);
+        p.ctx.drawImage(p.snap, cell.x * p.cw, cell.y * p.ch, p.cw, p.ch, -p.cw / 2, -p.ch / 2, p.cw, p.ch);
+        p.ctx.restore();
+      }
+    }
+    if (t < 1) requestAnimationFrame(frame);
+    else done();
+  };
+  requestAnimationFrame(frame);
+}
+
 /* ------------------------------------------------------------- countdown */
 
 function startClock() {
@@ -126,13 +212,14 @@ function startClock() {
     if (!session) return;
     const left = session.expiresAt - Date.now();
     el.clock.textContent = mmss(left);
-    const low = left <= 30000;
-    el.clock.classList.toggle('low', low);
-    el.clockWrap?.classList.toggle('low', low);
-    if (el.ring && session.totalMs) {
-      const frac = Math.max(0, Math.min(1, left / session.totalMs));
-      el.ring.style.strokeDashoffset = String(RING_C * (1 - frac));
-    }
+    const frac = session.totalMs ? Math.max(0, Math.min(1, left / session.totalMs)) : 0;
+    if (el.ring && session.totalMs) el.ring.style.strokeDashoffset = String(RING_C * (1 - frac));
+    const warn = frac <= 0.2;
+    const crit = frac <= 0.1;
+    el.clock.classList.toggle('low', crit);
+    el.clockWrap?.classList.toggle('warn', warn && !crit);
+    el.clockWrap?.classList.toggle('crit', crit);
+    el.clockWrap?.classList.toggle('shake', left <= 10000 && left > 0);
     if (left <= 0) {
       expireNow();
     }
@@ -153,17 +240,22 @@ async function notifyExpire(token) {
   } catch { /* the server expires it anyway, lazily or via the daily cron */ }
 }
 
-async function expireNow() {
+function expireNow() {
   if (finished) return;
   const token = session?.token;
   finished = true;
   if (ticker) clearInterval(ticker);
   stopMovingWatermark();
-  wipe();
-  view(el.expired);
-  el.vbar.hidden = true;
   el.shield.hidden = true;
-  await notifyExpire(token);
+
+  // The server hears about it immediately — the animation must never delay deletion.
+  notifyExpire(token);
+
+  dissolvePages(() => {
+    wipe();
+    view(el.expired);
+    el.vbar.hidden = true;
+  });
 }
 
 /* ------------------------------------------------------------------ flow */
