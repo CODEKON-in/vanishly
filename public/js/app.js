@@ -401,46 +401,76 @@ function pillFor(entry) {
   return { cls: '', text: '…' };
 }
 
+// Rows are kept per link id and only their text/classes are updated each
+// second. Rebuilding the list every tick used to drop keyboard focus, restart
+// the pill animations and cut the delete "dissolve" short.
+const rows = new Map();   // id -> { li, pill, kill, cls, text, label, gone }
+
+function buildRow(entry) {
+  const li = document.createElement('li');
+
+  const main = document.createElement('div');
+  main.className = 'l-main';
+  const name = document.createElement('div');
+  name.className = 'l-name';
+  name.textContent = entry.name || 'Document';
+  const meta = document.createElement('div');
+  meta.className = 'tiny';
+  meta.textContent = `${entry.pages} page${entry.pages === 1 ? '' : 's'} · /v/${entry.id}`;
+  main.append(name, meta);
+
+  const pill = document.createElement('span');
+  const kill = document.createElement('button');
+  kill.type = 'button';
+  kill.className = 'btn sm danger';
+
+  const row = { li, pill, kill, cls: null, text: null, label: null, gone: false, entry };
+  kill.addEventListener('click', async () => {
+    if (row.gone) return;
+    row.gone = true;
+    kill.disabled = true;
+    if (row.entry.state !== 'expired') {
+      try { await api('/api/delete', { json: { id: row.entry.id, ownerToken: row.entry.ownerToken } }); } catch { /* ignore */ }
+    }
+    // Let the row come apart before it goes, like everything else here.
+    li.classList.add('dissolving');
+    const gone = () => { forget(row.entry.id); renderList(); };
+    if (reduceMotion()) gone(); else setTimeout(gone, 420);
+  });
+
+  li.append(main, pill, kill);
+  return row;
+}
+
 function renderList() {
   const list = load();
   el.linksCard.hidden = list.length === 0;
-  el.links.textContent = '';
 
+  const seen = new Set();
+  let prev = null;
   for (const entry of list) {
-    const li = document.createElement('li');
+    seen.add(entry.id);
+    let row = rows.get(entry.id);
+    if (!row) { row = buildRow(entry); rows.set(entry.id, row); }
+    row.entry = entry;
 
-    const main = document.createElement('div');
-    main.className = 'l-main';
-    const name = document.createElement('div');
-    name.className = 'l-name';
-    name.textContent = entry.name || 'Document';
-    const meta = document.createElement('div');
-    meta.className = 'tiny';
-    meta.textContent = `${entry.pages} page${entry.pages === 1 ? '' : 's'} · /v/${entry.id}`;
-    main.append(name, meta);
+    if (row.gone) { prev = row.li; continue; }   // mid-dissolve: leave it alone
 
     const { cls, text } = pillFor(entry);
-    const pill = document.createElement('span');
-    pill.className = `pill ${cls}`;
-    pill.textContent = text;
+    if (cls !== row.cls) { row.pill.className = `pill ${cls}`.trim(); row.cls = cls; }
+    if (text !== row.text) { row.pill.textContent = text; row.text = text; }
+    const label = entry.state === 'expired' ? 'Clear' : 'Delete';
+    if (label !== row.label) { row.kill.textContent = label; row.label = label; }
 
-    const kill = document.createElement('button');
-    kill.type = 'button';
-    kill.className = 'btn sm danger';
-    kill.textContent = entry.state === 'expired' ? 'Clear' : 'Delete';
-    kill.addEventListener('click', async () => {
-      kill.disabled = true;
-      if (entry.state !== 'expired') {
-        try { await api('/api/delete', { json: { id: entry.id, ownerToken: entry.ownerToken } }); } catch { /* ignore */ }
-      }
-      // Let the row come apart before it goes, like everything else here.
-      li.classList.add('dissolving');
-      const gone = () => { forget(entry.id); renderList(); };
-      if (reduceMotion()) gone(); else setTimeout(gone, 420);
-    });
+    // Keep DOM order matching the stored order without re-inserting rows that
+    // are already in place (re-inserting would reset focus and animations).
+    const want = prev ? prev.nextSibling : el.links.firstChild;
+    if (want !== row.li) el.links.insertBefore(row.li, want);
+    prev = row.li;
+  }
 
-    li.append(main, pill, kill);
-    el.links.append(li);
+  for (const [id, row] of rows) {
+    if (!seen.has(id)) { row.li.remove(); rows.delete(id); }
   }
 }
 

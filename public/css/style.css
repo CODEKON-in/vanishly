@@ -1567,7 +1567,6 @@ body.viewer { background: var(--bg); }
 .theme-toggle:active { transform: translate(3px, 3px) scale(.92); box-shadow: 0 0 0 var(--shadow-c); }
 .theme-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 :root[data-theme="dark"] .theme-toggle { background: #2C2244; color: var(--sun); border-color: var(--ink); }
-body.viewer .theme-toggle { top: auto; bottom: calc(18px + var(--safe-b)); width: 44px; height: 44px; }
 
 /* Sun ↔ moon: the sun's core grows into a moon, a "bite" slides in, rays tuck away. */
 .tt-ico { width: 26px; height: 26px; overflow: visible; }
@@ -1633,3 +1632,98 @@ html.theme-fading body, html.theme-fading body * { transition: background-color 
 /* White text on buttons needs the deeper violet at night (5.6:1). */
 :root[data-theme="dark"] .btn:not(.ghost):not(.danger) { background: #6A4CFF; }
 :root[data-theme="dark"] .btn:not(.ghost):not(.danger):hover { background: #7A5EFF; }
+
+/* ==========================================================================
+   AUDIT FIXES + PERFORMANCE PASS
+   ========================================================================== */
+
+/* -- Theme toggle no longer floats over content while scrolling. It sits in
+      the page corner and scrolls away with the header. */
+.theme-toggle { position: absolute; }
+/* Viewer, document open: it lives in the top bar, between title and clock. */
+body.viewer:has(#vbar:not([hidden])) .theme-toggle {
+  position: fixed;
+  top: calc(max(10px, var(--safe-t)) + 3px);
+  right: calc(max(14px, var(--safe-r)) + 62px);
+  width: 44px; height: 44px;
+  z-index: 6;
+  box-shadow: none;
+}
+body.viewer:has(#vbar:not([hidden])) .v-bar .v-title { margin-right: 54px; }
+
+/* -- Links list on small phones: name gets the room, controls stay inside. */
+.list li { flex-wrap: wrap; row-gap: 10px; }
+.list .l-main { flex: 1 1 140px; }
+.list li .btn.sm { min-height: 40px; padding: 8px 14px; font-size: .9rem; flex: 0 0 auto; white-space: nowrap; }
+@media (max-width: 380px) {
+  .list li { padding: 14px 16px; gap: 10px; }
+  .list .l-main { flex-basis: 100%; }
+  .list li .pill { margin-right: auto; }
+}
+
+/* -- "Copy" ↔ "✓ Copied" without the button changing size. */
+#copy { min-width: 104px; }
+
+/* -- iOS zooms into any focused field under 16px. */
+.linkbox input { font-size: 16px; }
+
+/* -- Taps feel instant everywhere. */
+.btn, .seg label, .share-opt, .theme-toggle, .drop, .sheet-close, .ck-link { touch-action: manipulation; }
+
+/* -- Touch screens have no hover: stop tapped things staying "lifted". */
+@media (hover: none) {
+  .card:hover, .drop:hover, .site-head:hover .logo, .ck-link:hover, .theme-toggle:hover { transform: none; }
+  .btn:hover, .btn.ghost:hover, .btn.danger:hover, .btn.sm:hover { transform: none; box-shadow: var(--pop-sm); }
+  .btn:hover { background: var(--accent); }
+  :root[data-theme="dark"] .btn:not(.ghost):not(.danger):hover { background: #6A4CFF; }
+  .btn.ghost:hover, .btn.danger:hover { background: var(--surface); }
+  .seg label:hover { transform: none; box-shadow: none; }
+  .share-opt:hover, .share-opt:nth-child(even):hover { transform: none; box-shadow: none; background: var(--surface); color: var(--ink); }
+  :root[data-theme="dark"] .share-opt:hover { color: var(--ink) !important; }
+  .ck-link:hover { box-shadow: 3px 3px 0 var(--accent); }
+}
+/* Big cards jiggling under the mouse while you fill a form isn't fun. */
+.card:hover { transform: none; box-shadow: var(--pop); }
+
+/* -- PERF: wordmark "ly" fades with opacity + transform only (the old version
+      animated letter-spacing and blur, re-laying out the header every frame). */
+.wordmark .fade { display: inline-block; animation: lyVanish 5.5s ease-in-out infinite; will-change: opacity, transform; }
+@keyframes lyVanish {
+  0%, 55%   { opacity: 1; transform: none; }
+  75%       { opacity: .15; transform: translate(4px, -3px) scale(.92); }
+  88%, 100% { opacity: 1; transform: none; }
+}
+
+/* -- PERF: the drop-zone blob turns and breathes (transform) instead of
+      morphing its border-radius (a repaint every frame). */
+.drop::after { border-radius: 46% 54% 58% 42% / 48% 42% 58% 52%; animation: blobSpin 9s ease-in-out infinite; will-change: transform; }
+@keyframes blobSpin {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50%      { transform: rotate(160deg) scale(1.08); }
+}
+
+/* -- PERF: background layers are their own GPU layers; no blend modes. */
+body::before { will-change: transform; contain: strict; }
+body::after, :root[data-theme="dark"] body::after { mix-blend-mode: normal; opacity: .03; contain: strict; }
+
+/* -- PERF: no live backdrop blur over scrolling pages / under the sheet.
+      Near-opaque fills look the same and cost nothing. */
+.v-bar { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(var(--bg-rgb) / .97); }
+.sheet { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgb(21 16 31 / .55); }
+
+/* -- PERF: pages are composited once and skip layout work while off-screen. */
+#pages canvas { transform: translateZ(0); }
+.page-slot { contain: layout paint; }
+
+/* -- PERF: stop idle loops when nobody can see them (tab in background is
+      handled by the browser; this covers the share sheet being open). */
+body:has(.sheet:not([hidden])) .drop,
+body:has(.sheet:not([hidden])) .drop::after,
+body:has(.sheet:not([hidden]))::before { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark .fade, .drop::after { animation: none !important; }
+}
+
+/* The list heading is screen-reader only; its padding left an empty strip. */
+.list-head { padding: 0; }
