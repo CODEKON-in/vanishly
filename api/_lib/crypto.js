@@ -62,6 +62,39 @@ function secret() {
   return s;
 }
 
+function sessionSecret() {
+  const s = process.env.SESSION_SECRET || process.env.SECRET;
+  if (!s || s.length < 16) {
+    throw new Error('SESSION_SECRET (or SECRET) env var is missing or too short (need >= 16 chars).');
+  }
+  return s;
+}
+
+/**
+ * Account session cookie token: uid + session id + absolute expiry, HMAC-signed.
+ * Format: u.<uid>.<sid>.<expMs>.<sig>
+ */
+export function signUserSession({ uid, sid, expiresAt }) {
+  const payload = `u.${uid}.${sid}.${expiresAt}`;
+  const sig = createHmac('sha256', sessionSecret()).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+export function verifyUserSession(token) {
+  if (typeof token !== 'string' || token.length > 400) return null;
+  const parts = token.split('.');
+  if (parts.length !== 5) return null;
+  const [prefix, uid, sid, expRaw, sig] = parts;
+  if (prefix !== 'u') return null;
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(uid)) return null;
+  if (!/^[A-Za-z0-9_-]{12,64}$/.test(sid)) return null;
+  const expected = createHmac('sha256', sessionSecret()).update(`u.${uid}.${sid}.${expRaw}`).digest('base64url');
+  if (!safeEqual(sig, expected)) return null;
+  const expiresAt = Number(expRaw);
+  if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) return null;
+  return { uid, sid, expiresAt };
+}
+
 /**
  * Viewer session token: id + session id + absolute expiry, HMAC-signed.
  * Format: <id>.<sid>.<expMs>.<sig>

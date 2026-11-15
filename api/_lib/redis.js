@@ -19,6 +19,7 @@ export function getRedis() {
 }
 
 export const K = {
+  // Document lifecycle keys
   doc: (id) => `vp:doc:${id}`,
   blobs: (id) => `vp:blobs:${id}`,
   tomb: (id) => `vp:tomb:${id}`,
@@ -27,7 +28,25 @@ export const K = {
   pwLock: (id) => `vp:pwlock:${id}`,
   rate: (action, ip) => `vp:rl:${action}:${ip}`,
   index: 'vp:index',
+
+  // Accounts, sessions, OTPs, billing & plan limits
+  // user(emailHash)     -> JSON { id, email, createdAt, plan, planPeriodEnd, cancelAtPeriodEnd, rzSubId, credits, creditsExpiresAt, studentEligible }
+  user: (emailHash) => `vp:user:${emailHash}`,
+  // userById(uid)       -> string emailHash (maps opaque user id back to user record)
+  userById: (uid) => `vp:uid:${uid}`,
+  // session(sidHash)    -> JSON { id, uid, emailHash, createdAt, expiresAt } with ~30d TTL
+  session: (sidHash) => `vp:sess:${sidHash}`,
+  // otp(emailHash)      -> JSON { salt, hash, attempts, createdAt } with 10m TTL
+  otp: (emailHash) => `vp:otp:${emailHash}`,
+  // daily(actor, ymd)   -> integer counter for links created on UTC date YYYY-MM-DD (48h TTL)
+  //                        actor is `u:<uid>` for signed-in users or `ip:<sha256(ip)>` for anonymous
+  daily: (actor, ymd) => `vp:daily:${actor}:${ymd}`,
+  // webhookEvent(evtId) -> '1' with 30d TTL for idempotent Razorpay webhook processing
+  webhookEvent: (evtId) => `vp:wh:${evtId}`,
+  // userLinks(uid)      -> sorted set (score = createdAt ms) of JSON link summaries for paid cross-device history
+  userLinks: (uid) => `vp:ulinks:${uid}`,
 };
 
 export const TOMBSTONE_TTL = 60 * 60 * 24; // 24h — lets expired links show the expired page
 export const BLOB_RECORD_GRACE = 60 * 60 * 24 * 7; // blob list outlives the doc so cleanup can still find orphans
+export const DAILY_COUNTER_TTL = 60 * 60 * 48; // 48h — expires automatically after the UTC day ends

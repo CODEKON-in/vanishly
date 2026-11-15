@@ -6,6 +6,7 @@ import { loadLive, writeDoc, recordBlob, ttlFor } from './_lib/doc.js';
 import { putPage } from './_lib/blob.js';
 import { rateLimit } from './_lib/ratelimit.js';
 import { LIMITS } from './_lib/limits.js';
+import { PLANS, planLimitError } from './_lib/plans.js';
 
 export default wrap(async (req, res) => {
   if (!methodGuard(req, res, 'POST')) return;
@@ -20,7 +21,7 @@ export default wrap(async (req, res) => {
     return fail(res, 400, 'bad_request', 'Invalid page index.');
   }
 
-  const limit = await rateLimit('upload', clientIp(req), 400, 3600);
+  const limit = await rateLimit('upload', clientIp(req), 600, 3600);
   if (!limit.allowed) return fail(res, 429, 'rate_limited', 'Too many requests. Try again later.');
 
   const ctype = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
@@ -35,15 +36,20 @@ export default wrap(async (req, res) => {
   if (n >= doc.pages) return fail(res, 400, 'bad_request', 'Page index is out of range.');
   if (doc.blobUrls[n]) return fail(res, 409, 'duplicate_page', 'That page was already uploaded.');
 
-  const buf = await readRawBody(req, Math.min(MAX_BODY_BYTES, LIMITS.MAX_PAGE_BYTES + 1024));
-  if (buf.length > LIMITS.MAX_PAGE_BYTES) {
+  const maxPageBytes = doc.maxPageBytes || LIMITS.MAX_PAGE_BYTES;
+  const planKey = doc.plan || 'free';
+  const maxTotalBytes = doc.maxTotalBytes || (PLANS[planKey] || PLANS.free).maxTotalBytes;
+
+  const buf = await readRawBody(req, Math.min(MAX_BODY_BYTES, maxPageBytes + 1024));
+  if (buf.length > maxPageBytes) {
     return fail(res, 413, 'page_too_large', 'That page image is too large. Re-encode it smaller.');
   }
   if (!looksLikeJpeg(buf)) {
     return fail(res, 400, 'bad_image', 'That upload is not a valid JPEG.');
   }
-  if (doc.totalBytes + buf.length > LIMITS.MAX_TOTAL_BYTES) {
-    return fail(res, 413, 'document_too_large', 'This document exceeds the 15 MB total limit.');
+  if (doc.totalBytes + buf.length > maxTotalBytes) {
+    const mb = Math.round(maxTotalBytes / (1024 * 1024));
+    return planLimitError(res, 'total_bytes', planKey, `This document exceeds the ${mb} MB total upload limit for your plan.`, { max: maxTotalBytes });
   }
 
   const url = await putPage(id, n, buf);

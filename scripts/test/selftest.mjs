@@ -25,6 +25,9 @@ const page = (await import('../../api/page.js')).default;
 const expire = (await import('../../api/expire.js')).default;
 const remove = (await import('../../api/delete.js')).default;
 const cleanup = (await import('../../api/cleanup.js')).default;
+const { randomId, randomToken, sha256, signUserSession } = await import('../../api/_lib/crypto.js');
+const { K } = await import('../../api/_lib/redis.js');
+const { SESSION_COOKIE, PLANS } = await import('../../api/_lib/plans.js');
 
 /* ----------------------------------------------------------- test plumbing */
 
@@ -115,9 +118,51 @@ function writeStoredDoc(id, doc) {
   redisStore.set(docKey(id), { v: JSON.stringify(doc), exp: rec?.exp ?? null });
 }
 
-async function makeDoc(overrides = {}, pages = 2) {
+let userSeq = 0;
+function seedSession(plan = 'pro', userOverrides = {}) {
+  userSeq += 1;
+  const uid = `usr_${randomId(9)}`;
+  const email = userOverrides.email || `user${userSeq}@example.com`;
+  const emailHash = sha256(email.toLowerCase());
+  const now = Date.now();
+  const user = {
+    id: uid,
+    email: email.toLowerCase(),
+    createdAt: now,
+    plan,
+    planPeriodEnd: plan === 'free' ? null : now + 30 * 86400 * 1000,
+    cancelAtPeriodEnd: false,
+    rzSubId: null,
+    credits: 0,
+    creditsExpiresAt: null,
+    studentEligible: false,
+    ...userOverrides,
+  };
+  redisStore.set(K.user(emailHash), { v: JSON.stringify(user), exp: null });
+  redisStore.set(K.userById(uid), { v: emailHash, exp: null });
+
+  const sid = randomToken(18);
+  const expiresAt = now + 30 * 86400 * 1000;
+  const sess = { id: sid, uid, emailHash, createdAt: now, expiresAt };
+  redisStore.set(K.session(sha256(sid)), { v: JSON.stringify(sess), exp: expiresAt });
+
+  const token = signUserSession({ uid, sid, expiresAt });
+  return {
+    uid,
+    email: user.email,
+    emailHash,
+    sid,
+    token,
+    cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
+  };
+}
+
+const proOwner = seedSession('pro');
+
+async function makeDoc(overrides = {}, pages = 2, cookie = proOwner.cookie) {
   const res = await call(create, {
     url: '/api/create',
+    headers: cookie ? { cookie } : {},
     body: { pages, expirySeconds: 300, maxLifetimeSeconds: 3600, maxOpens: 1, ...overrides },
   });
   const s = res.json;
@@ -138,6 +183,7 @@ section('1. Owner upload flow');
 {
   const res = await call(create, {
     url: '/api/create',
+    headers: { cookie: proOwner.cookie },
     body: { pages: 3, expirySeconds: 180, maxLifetimeSeconds: 3600, maxOpens: 1, watermark: 'For Priya only' },
   });
   const s = res.json;
@@ -216,16 +262,20 @@ section('1. Owner upload flow');
 
 section('2. Limits and validation');
 {
-  const many = await call(create, { url: '/api/create', body: { pages: 31 } });
-  check('create rejects more than 30 pages', many.statusCode === 400 && many.json.error === 'too_many_pages');
+  const many = await call(create, {
+    url: '/api/create',
+    headers: { cookie: proOwner.cookie },
+    body: { pages: 51 },
+  });
+  check('create rejects pages over the plan limit with 403 plan_limit', many.statusCode === 403 && many.json.error === 'plan_limit' && many.json.limit === 'pages');
 
-  const noPages = await call(create, { url: '/api/create', body: {} });
+  const noPages = await call(create, { url: '/api/create', headers: { cookie: proOwner.cookie }, body: {} });
   check('create rejects a missing page count', noPages.statusCode === 400);
 
-  const shortPw = await call(create, { url: '/api/create', body: { pages: 1, password: 'ab' } });
+  const shortPw = await call(create, { url: '/api/create', headers: { cookie: proOwner.cookie }, body: { pages: 1, password: 'ab' } });
   check('create rejects a password under 4 characters', shortPw.statusCode === 400 && shortPw.json.error === 'bad_password');
 
-  const odd = await call(create, { url: '/api/create', body: { pages: 1, expirySeconds: 99999, maxLifetimeSeconds: 7, maxOpens: 42 } });
+  const odd = await call(create, { url: '/api/create', headers: { cookie: proOwner.cookie }, body: { pages: 1, expirySeconds: 99999, maxLifetimeSeconds: 7, maxOpens: 42 } });
   check('create clamps unknown option values to the defaults', odd.json.expirySeconds === 300 && odd.json.maxOpens === 1);
 
   const getOnPost = await call(create, { url: '/api/create', method: 'GET' });
@@ -428,6 +478,164 @@ section('13. Nothing sensitive is ever logged or returned');
   const stored = readStoredDoc(s.id);
   check('the password is stored only as a scrypt hash with a salt', !JSON.stringify(stored).includes('hunter2') && stored.salt && stored.passwordHash);
   check('owner and upload tokens are stored only as hashes', stored.ownerTokenHash !== s.ownerToken && stored.uploadTokenHash === null);
+}
+
+section('14. Plan enforcement — Free, Pro, and Ultra');
+{
+  const freeIp = '198.51.100.42';
+
+  // Free user blocked at 11 pages
+  const overPages = await call(create, {
+    url: '/api/create',
+    ip: freeIp,
+    body: { pages: 11 },
+  });
+  check(
+    'free user is blocked at 11 pages with 403 plan_limit',
+    overPages.statusCode === 403 && overPages.json.error === 'plan_limit' && overPages.json.limit === 'pages' && overPages.json.plan === 'free',
+    JSON.stringify(overPages.json),
+  );
+
+  // Free user blocked when sending a password
+  const withPw = await call(create, {
+    url: '/api/create',
+    ip: freeIp,
+    body: { pages: 2, password: 'secret' },
+  });
+  check(
+    'free user is blocked when sending a password',
+    withPw.statusCode === 403 && withPw.json.error === 'plan_limit' && withPw.json.limit === 'password' && withPw.json.plan === 'free',
+    JSON.stringify(withPw.json),
+  );
+
+  // Free user blocked when sending a watermark
+  const withWm = await call(create, {
+    url: '/api/create',
+    ip: freeIp,
+    body: { pages: 2, watermark: 'Confidential' },
+  });
+  check(
+    'free user is blocked when sending a watermark',
+    withWm.statusCode === 403 && withWm.json.error === 'plan_limit' && withWm.json.limit === 'watermark' && withWm.json.plan === 'free',
+    JSON.stringify(withWm.json),
+  );
+
+  // Free user blocked when asking for multi-open
+  const withMulti = await call(create, {
+    url: '/api/create',
+    ip: freeIp,
+    body: { pages: 2, maxOpens: 0 },
+  });
+  check(
+    'free user is blocked when asking for multi-open',
+    withMulti.statusCode === 403 && withMulti.json.error === 'plan_limit' && withMulti.json.limit === 'multi_open' && withMulti.json.plan === 'free',
+    JSON.stringify(withMulti.json),
+  );
+
+  // Server never trusts a client-supplied plan field
+  const spoofPlan = await call(create, {
+    url: '/api/create',
+    ip: freeIp,
+    body: { pages: 25, plan: 'ultra' },
+  });
+  check(
+    'server ignores a client-supplied plan and enforces free limits',
+    spoofPlan.statusCode === 403 && spoofPlan.json.plan === 'free' && spoofPlan.json.limit === 'pages',
+    JSON.stringify(spoofPlan.json),
+  );
+
+  // Free user can create 3 links (up to 10 pages), then is blocked on the 4th link of the day
+  const f1 = await call(create, { url: '/api/create', ip: freeIp, body: { pages: 10, expirySeconds: 120 } });
+  const f2 = await call(create, { url: '/api/create', ip: freeIp, body: { pages: 5, expirySeconds: 300 } });
+  const f3 = await call(create, { url: '/api/create', ip: freeIp, body: { pages: 1 } });
+  check(
+    'free user can create 3 valid links of up to 10 pages per day',
+    f1.statusCode === 201 && f2.statusCode === 201 && f3.statusCode === 201 && f1.json.plan === 'free',
+    `${f1.statusCode}/${f2.statusCode}/${f3.statusCode}`,
+  );
+
+  const f4 = await call(create, { url: '/api/create', ip: freeIp, body: { pages: 1 } });
+  check(
+    'free user is blocked at the 4th link of the day',
+    f4.statusCode === 403 && f4.json.error === 'plan_limit' && f4.json.limit === 'links_per_day' && f4.json.plan === 'free',
+    JSON.stringify(f4.json),
+  );
+
+  // Pro user is allowed >10 pages (up to 50), password, watermark, multi-open, and >3 links/day
+  const proUser = seedSession('pro');
+  let proCreated = 0;
+  for (let i = 0; i < 4; i += 1) {
+    const r = await call(create, {
+      url: '/api/create',
+      headers: { cookie: proUser.cookie },
+      body: {
+        pages: 50,
+        expirySeconds: 3600,
+        maxLifetimeSeconds: 86400,
+        maxOpens: 0,
+        password: 'pro-password',
+        watermark: 'Pro Watermark',
+      },
+    });
+    if (r.statusCode === 201 && r.json.plan === 'pro') proCreated += 1;
+  }
+  check('pro user is allowed 50 pages, password, watermark, multi-open, and >3 links/day', proCreated === 4, `created ${proCreated}`);
+
+  const proOverPages = await call(create, {
+    url: '/api/create',
+    headers: { cookie: proUser.cookie },
+    body: { pages: 51 },
+  });
+  check(
+    'pro user is blocked above 50 pages',
+    proOverPages.statusCode === 403 && proOverPages.json.limit === 'pages' && proOverPages.json.plan === 'pro',
+    JSON.stringify(proOverPages.json),
+  );
+
+  const proUltraTimer = await call(create, {
+    url: '/api/create',
+    headers: { cookie: proUser.cookie },
+    body: { pages: 5, expirySeconds: 10 },
+  });
+  check(
+    'pro user is blocked from Ultra-only 10s vanish timer',
+    proUltraTimer.statusCode === 403 && proUltraTimer.json.limit === 'expiry' && proUltraTimer.json.plan === 'pro',
+    JSON.stringify(proUltraTimer.json),
+  );
+
+  // Ultra user is allowed limits above Pro (up to 200 pages, 100 MB, 10s–24h expiry, 7d lifetime)
+  const ultraUser = seedSession('ultra');
+  const ultraOk = await call(create, {
+    url: '/api/create',
+    headers: { cookie: ultraUser.cookie },
+    body: {
+      pages: 200,
+      expirySeconds: 10,
+      maxLifetimeSeconds: 604800,
+      maxOpens: 0,
+      password: 'ultra-password',
+      watermark: 'Ultra Watermark',
+    },
+  });
+  check(
+    'ultra user is allowed 200 pages, 10s expiry, 7-day lifetime, and 100 MB limit',
+    ultraOk.statusCode === 201
+      && ultraOk.json.plan === 'ultra'
+      && ultraOk.json.limits.maxPages === PLANS.ultra.maxPages
+      && ultraOk.json.limits.maxTotalBytes === PLANS.ultra.maxTotalBytes,
+    JSON.stringify(ultraOk.json),
+  );
+
+  const ultraOverPages = await call(create, {
+    url: '/api/create',
+    headers: { cookie: ultraUser.cookie },
+    body: { pages: 201 },
+  });
+  check(
+    'ultra user is blocked above 200 pages',
+    ultraOverPages.statusCode === 403 && ultraOverPages.json.limit === 'pages' && ultraOverPages.json.plan === 'ultra',
+    JSON.stringify(ultraOverPages.json),
+  );
 }
 
 /* ------------------------------------------------------------------ report */
