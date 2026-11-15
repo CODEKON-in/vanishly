@@ -15,6 +15,7 @@ process.env.CRON_SECRET = 'cron-test-secret';
 
 const { store: blobStore } = await import('./stub-blob.mjs');
 const { store: redisStore } = await import('./stub-redis.mjs');
+const { outbox: mailOutbox } = await import('./stub-mail.mjs');
 
 const create = (await import('../../api/create.js')).default;
 const uploadPage = (await import('../../api/upload-page.js')).default;
@@ -25,6 +26,7 @@ const page = (await import('../../api/page.js')).default;
 const expire = (await import('../../api/expire.js')).default;
 const remove = (await import('../../api/delete.js')).default;
 const cleanup = (await import('../../api/cleanup.js')).default;
+const auth = (await import('../../api/auth.js')).default;
 const { randomId, randomToken, sha256, signUserSession } = await import('../../api/_lib/crypto.js');
 const { K } = await import('../../api/_lib/redis.js');
 const { SESSION_COOKIE, PLANS } = await import('../../api/_lib/plans.js');
@@ -635,6 +637,145 @@ section('14. Plan enforcement — Free, Pro, and Ultra');
     'ultra user is blocked above 200 pages',
     ultraOverPages.statusCode === 403 && ultraOverPages.json.limit === 'pages' && ultraOverPages.json.plan === 'ultra',
     JSON.stringify(ultraOverPages.json),
+  );
+}
+
+section('15. Accounts — email OTP, sessions, logout, and /api/auth/me');
+{
+  const anonMe = await call(auth, { url: '/api/auth/me', method: 'GET' });
+  check(
+    'unauthenticated /api/auth/me returns free plan and authenticated: false',
+    anonMe.statusCode === 200 && anonMe.json.authenticated === false && anonMe.json.plan === 'free' && anonMe.json.limits.maxPages === 10,
+    JSON.stringify(anonMe.json),
+  );
+
+  const badEmail = await call(auth, {
+    url: '/api/auth/request-code',
+    body: { email: 'not-an-email' },
+  });
+  check('request-code rejects a malformed email', badEmail.statusCode === 400 && badEmail.json.error === 'bad_email');
+
+  const reqNew = await call(auth, {
+    url: '/api/auth/request-code',
+    ip: '198.51.100.88',
+    body: { email: 'Alice@Example.com ' },
+  });
+  const reqExisting = await call(auth, {
+    url: '/api/auth/request-code',
+    ip: '198.51.100.89',
+    body: { email: proOwner.email },
+  });
+  check(
+    'request-code returns the exact same 200 payload whether or not the account exists',
+    reqNew.statusCode === 200 && reqExisting.statusCode === 200 && JSON.stringify(reqNew.json) === JSON.stringify(reqExisting.json),
+  );
+
+  const sentCode = mailOutbox.get('alice@example.com')?.code;
+  check('stubbed mail provider captured a 6-digit OTP', typeof sentCode === 'string' && /^\d{6}$/.test(sentCode), String(sentCode));
+
+  const storedOtpRaw = JSON.stringify(redisStore.get(K.otp(sha256('alice@example.com')))?.v || '');
+  check('OTP is stored hashed with a salt in Redis, never in plaintext', !storedOtpRaw.includes(sentCode) && storedOtpRaw.includes('hash') && storedOtpRaw.includes('salt'));
+
+  // Test max 5 attempts on OTP
+  for (let i = 0; i < 4; i += 1) {
+    const wrong = await call(auth, {
+      url: '/api/auth/verify',
+      ip: '198.51.100.88',
+      body: { email: 'alice@example.com', code: '000000' === sentCode ? '999999' : '000000' },
+    });
+    if (i === 0) check('wrong OTP returns 401 invalid_code', wrong.statusCode === 401 && wrong.json.error === 'invalid_code');
+  }
+  const fifthWrong = await call(auth, {
+    url: '/api/auth/verify',
+    ip: '198.51.100.88',
+    body: { email: 'alice@example.com', code: '000000' === sentCode ? '999999' : '000000' },
+  });
+  check('5th wrong OTP attempt locks and deletes the code (429)', fifthWrong.statusCode === 429 && fifthWrong.json.error === 'too_many_attempts');
+
+  const afterLock = await call(auth, {
+    url: '/api/auth/verify',
+    ip: '198.51.100.88',
+    body: { email: 'alice@example.com', code: sentCode },
+  });
+  check('locked OTP cannot be verified even with the original code', afterLock.statusCode === 401);
+
+  // Request a fresh code and sign in
+  await call(auth, {
+    url: '/api/auth/request-code',
+    ip: '198.51.100.88',
+    body: { email: 'alice@example.com' },
+  });
+  const freshCode = mailOutbox.get('alice@example.com')?.code;
+  const verified = await call(auth, {
+    url: '/api/auth/verify',
+    ip: '198.51.100.88',
+    body: { email: 'alice@example.com', code: freshCode },
+  });
+  const setCookie = String(verified.getHeader('set-cookie') || '');
+  check(
+    'verify succeeds with 200 and returns email, plan, and limits',
+    verified.statusCode === 200 && verified.json.email === 'alice@example.com' && verified.json.plan === 'free',
+    JSON.stringify(verified.json),
+  );
+  check(
+    'verify sets an HttpOnly, Secure, SameSite=Lax cookie for ~30 days',
+    setCookie.includes('HttpOnly') && setCookie.includes('Secure') && setCookie.includes('SameSite=Lax') && setCookie.includes('Path=/') && setCookie.includes('Max-Age=2592000'),
+    setCookie,
+  );
+
+  const replayOtp = await call(auth, {
+    url: '/api/auth/verify',
+    ip: '198.51.100.88',
+    body: { email: 'alice@example.com', code: freshCode },
+  });
+  check('OTP is one-shot and cannot be replayed', replayOtp.statusCode === 401);
+
+  const aliceCookie = setCookie.split(';')[0];
+  const me1 = await call(auth, {
+    url: '/api/auth/me',
+    method: 'GET',
+    headers: { cookie: aliceCookie },
+  });
+  check(
+    'authenticated /api/auth/me returns the signed-in user and plan',
+    me1.statusCode === 200 && me1.json.authenticated === true && me1.json.email === 'alice@example.com' && me1.json.plan === 'free',
+    JSON.stringify(me1.json),
+  );
+
+  // Server-side plan changes take effect immediately without re-issuing the cookie
+  const aliceHash = sha256('alice@example.com');
+  const aliceRecord = JSON.parse(redisStore.get(K.user(aliceHash)).v);
+  aliceRecord.plan = 'pro';
+  aliceRecord.planPeriodEnd = Date.now() + 30 * 86400 * 1000;
+  redisStore.set(K.user(aliceHash), { v: JSON.stringify(aliceRecord), exp: null });
+
+  const me2 = await call(auth, {
+    url: '/api/auth/me',
+    method: 'GET',
+    headers: { cookie: aliceCookie },
+  });
+  check(
+    'server-side plan change takes effect immediately on existing session',
+    me2.statusCode === 200 && me2.json.plan === 'pro' && me2.json.limits.maxPages === 50,
+    JSON.stringify(me2.json),
+  );
+
+  // Logout revokes the session server-side immediately
+  const loggedOut = await call(auth, {
+    url: '/api/auth/logout',
+    headers: { cookie: aliceCookie },
+  });
+  check('logout returns 200 and clears the cookie', loggedOut.statusCode === 200 && String(loggedOut.getHeader('set-cookie')).includes('Max-Age=0'));
+
+  const meAfterLogout = await call(auth, {
+    url: '/api/auth/me',
+    method: 'GET',
+    headers: { cookie: aliceCookie },
+  });
+  check(
+    'replaying a logged-out session cookie resolves as unauthenticated free',
+    meAfterLogout.json.authenticated === false && meAfterLogout.json.plan === 'free',
+    JSON.stringify(meAfterLogout.json),
   );
 }
 

@@ -25,6 +25,8 @@ const PORT = Number(process.env.PORT || 3000);
 
 const { store: blobStore } = await import('./stub-blob.mjs');
 
+const authHandler = (await import('../../api/auth.js')).default;
+
 const routes = {
   '/api/create': (await import('../../api/create.js')).default,
   '/api/upload-page': (await import('../../api/upload-page.js')).default,
@@ -35,6 +37,11 @@ const routes = {
   '/api/expire': (await import('../../api/expire.js')).default,
   '/api/delete': (await import('../../api/delete.js')).default,
   '/api/cleanup': (await import('../../api/cleanup.js')).default,
+  '/api/auth': authHandler,
+  '/api/auth/request-code': authHandler,
+  '/api/auth/verify': authHandler,
+  '/api/auth/logout': authHandler,
+  '/api/auth/me': authHandler,
 };
 
 // /api/page fetches blob URLs server-side; serve them from the in-memory store.
@@ -119,6 +126,12 @@ const server = createServer(async (req, res) => {
       if (info.isDirectory()) return await serveFile(res, join(target, 'index.html'));
       return await serveFile(res, target);
     } catch {
+      if (!extname(target)) {
+        try {
+          await stat(`${target}.html`);
+          return await serveFile(res, `${target}.html`);
+        } catch { /* fall through */ }
+      }
       return await serveFile(res, join(pub, '404.html'), 404);
     }
   } catch (err) {

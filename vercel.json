@@ -8,6 +8,10 @@
     {
       "source": "/v/:id",
       "destination": "/viewer"
+    },
+    {
+      "source": "/api/auth/:action",
+      "destination": "/api/auth?action=:action"
     }
   ],
   "crons": [
