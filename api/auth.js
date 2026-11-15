@@ -8,6 +8,7 @@ import {
   generateOtpCode,
   storeOtp,
   checkOtp,
+  readUserByEmailHash,
   findOrCreateUser,
   createAuthSession,
   revokeRequestSession,
@@ -15,6 +16,11 @@ import {
   buildLogoutCookie,
   buildMePayload,
 } from './_lib/auth.js';
+import {
+  resolveUserRoleAndPermissions,
+  isConfiguredOwnerEmail,
+} from './_lib/rbac.js';
+import { recordSecurityAlert, getAppSettings } from './_lib/telemetry.js';
 
 function resolveAction(req) {
   const q = query(req);
@@ -44,6 +50,14 @@ async function handleRequestCode(req, res) {
   }
 
   const emailHash = sha256(email);
+  const settings = await getAppSettings();
+  if (!settings.signupsEnabled && !isConfiguredOwnerEmail(email)) {
+    const existing = await readUserByEmailHash(emailHash);
+    if (!existing) {
+      return fail(res, 403, 'signups_disabled', 'New account sign-ups are temporarily paused.');
+    }
+  }
+
   const emailLimit = await rateLimit('auth_code_em', emailHash, 5, 600);
   if (!emailLimit.allowed) {
     return fail(res, 429, 'rate_limited', 'Too many codes requested for this address. Wait 10 minutes and try again.');
@@ -84,6 +98,12 @@ async function handleVerify(req, res) {
   const result = await checkOtp(emailHash, code);
 
   if (result.status === 'locked') {
+    await recordSecurityAlert({
+      type: 'otp_lockout',
+      route: '/api/auth/verify',
+      actor: sha256(ip),
+      detail: 'OTP verification locked after 5 failed attempts',
+    });
     return fail(res, 429, 'too_many_attempts', 'Too many wrong codes. Request a new code to continue.');
   }
   if (result.status !== 'ok') {
@@ -94,6 +114,7 @@ async function handleVerify(req, res) {
   const { user } = await findOrCreateUser(email, now);
   const session = await createAuthSession(user, emailHash, now);
   const status = effectiveUserPlan(user, now);
+  const { role, permissions } = resolveUserRoleAndPermissions(user);
 
   send(
     res,
@@ -101,6 +122,8 @@ async function handleVerify(req, res) {
     {
       ok: true,
       email: user.email,
+      role,
+      permissions,
       plan: status.effectivePlan,
       basePlan: status.basePlan,
       credits: status.creditsLeft,
@@ -130,3 +153,4 @@ export default wrap(async (req, res) => {
   if (action === 'me') return handleMe(req, res);
   return fail(res, 404, 'not_found', 'Unknown auth endpoint.');
 });
+

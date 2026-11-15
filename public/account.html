@@ -99,12 +99,17 @@
         <span class="stat-k">Credits left</span>
         <span class="stat-v" id="acct-credits">0</span>
       </div>
+      <div class="acct-stat" id="acct-role-wrap" hidden>
+        <span class="stat-k">Access role</span>
+        <span class="stat-v" id="acct-role">User</span>
+      </div>
     </div>
 
     <div id="acct-msg" class="alert ok" hidden role="status"></div>
     <div id="acct-err" class="alert err" hidden role="alert"></div>
 
     <div class="acct-actions">
+      <a href="/dev" class="btn sm" id="dev-dash-link" hidden>Developer Dashboard &rarr;</a>
       <a href="/pricing" class="btn sm" id="acct-upgrade">Upgrade or buy credits</a>
       <button type="button" class="btn sm danger" id="cancel-sub" hidden>Cancel subscription</button>
       <button type="button" class="btn sm ghost" id="logout-btn">Sign out</button>
@@ -139,3 +144,4 @@
 <script type="module" src="/js/account.js"></script>
 </body>
 </html>
+

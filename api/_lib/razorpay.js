@@ -117,3 +117,4 @@ export function verifyWebhookSignature(rawBuffer, signatureHeader) {
   const expected = createHmac('sha256', secret).update(rawBuffer).digest('hex');
   return safeEqual(signatureHeader.trim().toLowerCase(), expected.toLowerCase());
 }
+

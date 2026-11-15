@@ -61,11 +61,88 @@ export class Redis {
     return list.length;
   }
 
+  async lpush(key, ...values) {
+    const rec = live(key);
+    const list = Array.isArray(rec?.v) ? rec.v : [];
+    for (const v of values.flat()) list.unshift(v);
+    store.set(key, { v: list, exp: rec?.exp ?? null });
+    return list.length;
+  }
+
+  async ltrim(key, start, stop) {
+    const rec = live(key);
+    if (!Array.isArray(rec?.v)) return 'OK';
+    const end = stop < 0 ? rec.v.length + stop + 1 : stop + 1;
+    rec.v = rec.v.slice(start, end);
+    store.set(key, rec);
+    return 'OK';
+  }
+
   async lrange(key, start, stop) {
     const rec = live(key);
     const list = Array.isArray(rec?.v) ? rec.v : [];
     const end = stop < 0 ? list.length + stop + 1 : stop + 1;
     return list.slice(start, end);
+  }
+
+  async hincrby(key, field, increment = 1) {
+    const rec = live(key);
+    const hash = rec?.v && typeof rec.v === 'object' && !Array.isArray(rec.v) && !(rec.v instanceof Map) && !(rec.v instanceof Set)
+      ? rec.v
+      : {};
+    const next = Number(hash[field] || 0) + Number(increment);
+    hash[field] = next;
+    store.set(key, { v: hash, exp: rec?.exp ?? null });
+    return next;
+  }
+
+  async hgetall(key) {
+    const rec = live(key);
+    if (!rec?.v || typeof rec.v !== 'object' || Array.isArray(rec.v) || rec.v instanceof Map || rec.v instanceof Set) {
+      return null;
+    }
+    return { ...rec.v };
+  }
+
+  async sadd(key, ...members) {
+    const rec = live(key);
+    const set = rec?.v instanceof Set ? rec.v : new Set();
+    let added = 0;
+    for (const m of members.flat()) {
+      const s = String(m);
+      if (!set.has(s)) { set.add(s); added += 1; }
+    }
+    store.set(key, { v: set, exp: rec?.exp ?? null });
+    return added;
+  }
+
+  async srem(key, ...members) {
+    const rec = live(key);
+    if (!(rec?.v instanceof Set)) return 0;
+    let removed = 0;
+    for (const m of members.flat()) {
+      if (rec.v.delete(String(m))) removed += 1;
+    }
+    return removed;
+  }
+
+  async scard(key) {
+    const rec = live(key);
+    return rec?.v instanceof Set ? rec.v.size : 0;
+  }
+
+  async smembers(key) {
+    const rec = live(key);
+    return rec?.v instanceof Set ? [...rec.v] : [];
+  }
+
+  async zcard(key) {
+    const rec = live(key);
+    return rec?.v instanceof Map ? rec.v.size : 0;
+  }
+
+  async ping() {
+    return 'PONG';
   }
 
   async zadd(key, ...entries) {

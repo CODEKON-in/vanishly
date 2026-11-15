@@ -1,6 +1,8 @@
 import { getRedis, K, DAILY_COUNTER_TTL } from './redis.js';
 import { sha256, verifyUserSession } from './crypto.js';
 import { clientIp, send } from './http.js';
+import { resolveUserRoleAndPermissions, ROLES } from './rbac.js';
+import { trackActiveUser } from './telemetry.js';
 
 export const SESSION_COOKIE = 'vp_session';
 
@@ -212,14 +214,23 @@ export function effectiveUserPlan(user, now = Date.now()) {
   if (!user) {
     return { basePlan: 'free', effectivePlan: 'free', usingCredit: false, creditsLeft: 0 };
   }
-  let basePlan = user.plan === 'pro' || user.plan === 'ultra' ? user.plan : 'free';
-  if (basePlan !== 'free' && user.planPeriodEnd && now >= Number(user.planPeriodEnd)) {
-    basePlan = 'free';
-  }
-
+  const { role } = resolveUserRoleAndPermissions(user);
   let creditsLeft = Number.isInteger(user.credits) && user.credits > 0 ? user.credits : 0;
   if (creditsLeft > 0 && user.creditsExpiresAt && now >= Number(user.creditsExpiresAt)) {
     creditsLeft = 0;
+  }
+  if (role === ROLES.OWNER) {
+    return {
+      basePlan: 'ultra',
+      effectivePlan: 'ultra',
+      usingCredit: false,
+      creditsLeft,
+    };
+  }
+
+  let basePlan = user.plan === 'pro' || user.plan === 'ultra' ? user.plan : 'free';
+  if (basePlan !== 'free' && user.planPeriodEnd && now >= Number(user.planPeriodEnd)) {
+    basePlan = 'free';
   }
 
   if (basePlan === 'free' && creditsLeft > 0) {
@@ -258,9 +269,13 @@ export async function resolvePlanContext(req, now = Date.now()) {
         if (user && user.id === verified.uid) {
           const status = effectiveUserPlan(user, now);
           const planKey = status.effectivePlan;
+          const { role, permissions } = resolveUserRoleAndPermissions(user);
+          await trackActiveUser(user.id, now);
           return {
             user,
             session: sess,
+            role,
+            permissions,
             basePlanKey: status.basePlan,
             planKey,
             plan: PLANS[planKey] || PLANS.free,
@@ -276,6 +291,8 @@ export async function resolvePlanContext(req, now = Date.now()) {
   return {
     user: null,
     session: null,
+    role: ROLES.USER,
+    permissions: [],
     basePlanKey: 'free',
     planKey: 'free',
     plan: PLANS.free,
@@ -324,3 +341,4 @@ export function planLimitError(res, limit, planKey, message, extra = {}) {
     ...extra,
   });
 }
+

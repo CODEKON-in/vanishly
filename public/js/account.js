@@ -24,6 +24,9 @@ const el = {
   acctPlan: $('acct-plan'),
   acctRenewal: $('acct-renewal'),
   acctCredits: $('acct-credits'),
+  acctRoleWrap: $('acct-role-wrap'),
+  acctRole: $('acct-role'),
+  devDashLink: $('dev-dash-link'),
   acctMsg: $('acct-msg'),
   acctErr: $('acct-err'),
   cancelSub: $('cancel-sub'),
@@ -205,6 +208,13 @@ function renderMe(me) {
 
   el.acctCredits.textContent = String(me.credits || 0);
 
+  const isStaff = me.role === 'owner' || me.role === 'developer';
+  el.acctRoleWrap.hidden = !isStaff;
+  el.devDashLink.hidden = !isStaff;
+  if (isStaff) {
+    el.acctRole.textContent = me.role === 'owner' ? 'Owner' : 'Developer';
+  }
+
   const canCancel = (me.basePlan === 'pro' || me.basePlan === 'ultra') && !me.cancelAtPeriodEnd;
   el.cancelSub.hidden = !canCancel;
 
@@ -277,7 +287,11 @@ async function verifyCode() {
   el.loginVerify.disabled = true;
   el.loginVerify.textContent = 'Verifying\u2026';
   try {
-    await api('/api/auth/verify', { json: { email: pendingEmail, code } });
+    const res = await api('/api/auth/verify', { json: { email: pendingEmail, code } });
+    if (res?.role === 'owner' || res?.role === 'developer') {
+      window.location.href = '/dev';
+      return;
+    }
     await loadAccount();
   } catch (err) {
     el.loginCodeErr.textContent = err.message || 'Invalid verification code.';
@@ -380,3 +394,4 @@ loadAccount();
 setInterval(() => {
   if (historyList.length) renderHistory();
 }, 1000);
+

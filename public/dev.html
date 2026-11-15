@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFF6EA">
+<meta name="robots" content="noindex, nofollow">
+<title>Developer Dashboard — Vanishly</title>
+<meta name="description" content="Owner and Developer control plane for Vanishly.">
+<link rel="preload" href="/fonts/fredoka-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/css/style.css">
+<script src="/js/theme.js"></script>
+</head>
+<body>
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark theme" aria-pressed="false">
+  <svg class="tt-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <mask id="tt-mask"><rect x="-4" y="-4" width="32" height="32" fill="#fff"></rect><circle class="tt-bite" cx="30" cy="-6" r="7" fill="#000"></circle></mask>
+    <circle class="tt-core" cx="12" cy="12" r="5" mask="url(#tt-mask)"></circle>
+    <g class="tt-rays"><path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"></path></g>
+  </svg>
+  <i class="tt-spark"></i><i class="tt-spark"></i><i class="tt-spark"></i><i class="tt-spark"></i><i class="tt-spark"></i><i class="tt-spark"></i>
+</button>
+
+<div class="wrap wrap-wide">
+
+  <header class="site-head">
+    <a href="/" class="head-brand">
+      <div class="logo" aria-hidden="true">V</div>
+      <div>
+        <h1 class="wordmark">Vanishl<span class="fade">y</span></h1>
+        <p class="sub">Owner &amp; Developer Control Plane</p>
+      </div>
+    </a>
+    <nav class="head-nav" aria-label="Site navigation">
+      <span class="role-pill owner" id="dev-role-badge" hidden>OWNER</span>
+      <a href="/" class="nav-link">Upload PDF</a>
+      <a href="/account" class="nav-link">Account</a>
+      <a href="/pricing" class="nav-link">Pricing</a>
+    </nav>
+  </header>
+
+  <!-- 1. DEVELOPER LOGIN VIEW (when signed out) -->
+  <section class="card step" id="dev-login-card" hidden aria-labelledby="dev-login-h">
+    <h2 id="dev-login-h">Developer &amp; Owner Sign In</h2>
+    <p class="tiny">Sign in with your authorized Owner or Developer email address to access diagnostics, telemetry, RBAC permissions, and system controls.</p>
+
+    <div id="dev-step-email">
+      <div class="field">
+        <label for="dev-email">Authorized email address</label>
+        <input type="email" id="dev-email" autocomplete="email" maxlength="254" placeholder="owner@example.com">
+      </div>
+      <div id="dev-email-err" class="alert err" hidden role="alert"></div>
+      <button type="button" class="btn" id="dev-send-code">Send 6-digit verification code</button>
+    </div>
+
+    <div id="dev-step-code" hidden>
+      <div class="field">
+        <span class="field-label" id="lbl-dev-code">Enter 6-digit verification code</span>
+        <div class="otp-boxes" role="group" aria-labelledby="lbl-dev-code">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="dev-code-0" aria-label="Digit 1">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="dev-code-1" aria-label="Digit 2">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="dev-code-2" aria-label="Digit 3">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="dev-code-3" aria-label="Digit 4">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="dev-code-4" aria-label="Digit 5">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="dev-code-5" aria-label="Digit 6">
+        </div>
+        <span class="hint" id="dev-code-hint">Enter the 6-digit code sent to your inbox.</span>
+      </div>
+      <div id="dev-code-err" class="alert err" hidden role="alert"></div>
+      <div class="btn-row">
+        <button type="button" class="btn ghost" id="dev-back-btn">Different email</button>
+        <button type="button" class="btn" id="dev-verify-btn">Verify &amp; open dashboard</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. ACCESS DENIED VIEW (when signed in as a normal user) -->
+  <section class="card step" id="dev-denied-card" hidden aria-labelledby="dev-denied-h">
+    <h2 id="dev-denied-h">Developer Access Required</h2>
+    <p class="tiny">Your account (<strong id="denied-email">—</strong>) has the standard <strong>User</strong> role and is not authorized to access developer tools.</p>
+    <div class="btn-row">
+      <a href="/account" class="btn sm ghost">Go to my account</a>
+      <button type="button" class="btn sm danger" id="denied-logout-btn">Sign out</button>
+    </div>
+  </section>
+
+  <!-- 3. AUTHORIZED DEVELOPER / OWNER WORKSPACE -->
+  <div id="dev-workspace" hidden>
+
+    <!-- Identity & Action Bar -->
+    <section class="card dev-bar" aria-label="Developer session bar">
+      <div class="dev-bar-top">
+        <div>
+          <div class="dev-ident">
+            <span class="stat-k">Signed in as</span>
+            <strong id="dev-viewer-email">—</strong>
+            <span class="role-pill owner" id="dev-viewer-role">OWNER</span>
+          </div>
+          <p class="tiny" id="dev-perms-summary">Permissions: —</p>
+        </div>
+        <div class="dev-bar-actions">
+          <button type="button" class="btn sm ghost" id="dev-refresh-btn">Refresh data</button>
+          <button type="button" class="btn sm danger" id="dev-logout-btn">Sign out</button>
+        </div>
+      </div>
+
+      <div class="dev-confirm-bar">
+        <label class="chk" for="confirm-arm-check">
+          <input type="checkbox" id="confirm-arm-check">
+          <span>Arm destructive / write actions (sends server confirmation token)</span>
+        </label>
+      </div>
+
+      <div id="dev-global-msg" class="alert ok" hidden role="status"></div>
+      <div id="dev-global-err" class="alert err" hidden role="alert"></div>
+
+      <nav class="dev-tabs" aria-label="Developer tool sections">
+        <a href="#sec-system" class="dev-tab">1. System Monitor</a>
+        <a href="#sec-errors" class="dev-tab">2. Error Logs</a>
+        <a href="#sec-api" class="dev-tab">3. API Monitor</a>
+        <a href="#sec-db" class="dev-tab">4. Database Overview</a>
+        <a href="#sec-users" class="dev-tab">5. User Management</a>
+        <a href="#sec-security" class="dev-tab">6. Security Audit</a>
+        <a href="#sec-perf" class="dev-tab">7. Performance</a>
+        <a href="#sec-settings" class="dev-tab">8. App Settings</a>
+        <a href="#sec-audit" class="dev-tab">9. Dev Activity</a>
+      </nav>
+    </section>
+
+    <!-- SECTION 1: SYSTEM MONITOR -->
+    <section class="card dev-sec" id="sec-system" aria-labelledby="h-sec-system">
+      <div class="dev-sec-head">
+        <h2 id="h-sec-system">1. System Monitor &amp; Application Overview</h2>
+        <span class="pill live" id="sys-health-pill">Operational</span>
+      </div>
+
+      <div class="acct-grid dev-stat-grid">
+        <div class="acct-stat">
+          <span class="stat-k">Registered Accounts</span>
+          <span class="stat-v" id="stat-total-users">0</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">Active Users Today (UTC)</span>
+          <span class="stat-v" id="stat-active-users">0</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">Tracked Live PDFs</span>
+          <span class="stat-v" id="stat-tracked-docs">0</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">Redis Database</span>
+          <span class="stat-v" id="stat-db-status">Checking…</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">Backend &amp; API</span>
+          <span class="stat-v" id="stat-api-status">Operational</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">Process Uptime</span>
+          <span class="stat-v" id="stat-uptime">0s</span>
+        </div>
+      </div>
+
+      <h3 class="dev-sub-h">Integration &amp; Environment Readiness (Secrets Redacted)</h3>
+      <div class="dev-int-grid" id="integration-grid"></div>
+    </section>
+
+    <!-- SECTION 2: ERROR LOGS -->
+    <section class="card dev-sec" id="sec-errors" aria-labelledby="h-sec-errors">
+      <div class="dev-sec-head">
+        <h2 id="h-sec-errors">2. Recent Application Errors</h2>
+        <span class="tiny" id="error-logs-count">0 entries</span>
+      </div>
+      <p class="tiny" id="error-logs-empty">No server errors recorded.</p>
+      <ul class="dev-log-list" id="error-logs-list"></ul>
+    </section>
+
+    <!-- SECTION 3: API MONITOR -->
+    <section class="card dev-sec" id="sec-api" aria-labelledby="h-sec-api">
+      <div class="dev-sec-head">
+        <h2 id="h-sec-api">3. API Request Monitor (Today UTC)</h2>
+        <span class="tiny" id="api-date-label">—</span>
+      </div>
+
+      <div class="acct-grid dev-stat-grid">
+        <div class="acct-stat">
+          <span class="stat-k">Total API Requests</span>
+          <span class="stat-v" id="api-total-req">0</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">2xx / 3xx Responses</span>
+          <span class="stat-v" id="api-2xx">0</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">4xx Client Rejections</span>
+          <span class="stat-v" id="api-4xx">0</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">5xx Server Errors</span>
+          <span class="stat-v" id="api-5xx">0</span>
+        </div>
+      </div>
+
+      <div class="dev-table-wrap">
+        <table class="dev-table">
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Requests</th>
+              <th>Errors</th>
+              <th>Avg Latency</th>
+            </tr>
+          </thead>
+          <tbody id="api-routes-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SECTION 4: DATABASE OVERVIEW -->
+    <section class="card dev-sec" id="sec-db" aria-labelledby="h-sec-db">
+      <div class="dev-sec-head">
+        <h2 id="h-sec-db">4. Database Structure &amp; Document Inspector</h2>
+        <button type="button" class="btn sm ghost" id="db-cleanup-btn">Sweep Expired Index</button>
+      </div>
+
+      <div class="dev-table-wrap">
+        <table class="dev-table">
+          <thead>
+            <tr>
+              <th>Redis Key Pattern</th>
+              <th>Type / TTL Policy</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody id="db-schema-body"></tbody>
+        </table>
+      </div>
+
+      <div class="dev-inspector">
+        <label for="db-inspect-input">Inspect or Force-Destroy Document by ID (Hashes &amp; Blobs Redacted)</label>
+        <div class="pw-row">
+          <input type="text" id="db-inspect-input" maxlength="20" placeholder="e.g. aBcDeFg12">
+          <button type="button" class="btn sm" id="db-inspect-btn">Inspect</button>
+          <button type="button" class="btn sm danger" id="db-destroy-btn">Force Destroy</button>
+        </div>
+        <pre class="dev-pre" id="db-inspect-out" hidden></pre>
+      </div>
+    </section>
+
+    <!-- SECTION 5: USER MANAGEMENT & RBAC -->
+    <section class="card dev-sec" id="sec-users" aria-labelledby="h-sec-users">
+      <div class="dev-sec-head">
+        <h2 id="h-sec-users">5. User Management &amp; Granular Developer Permissions</h2>
+        <span class="tiny" id="users-count-label">0 accounts</span>
+      </div>
+
+      <div class="dev-table-wrap">
+        <table class="dev-table">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Plan / Credits</th>
+              <th>Created</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="dev-subpanel" id="user-manage-form">
+        <h3 class="dev-sub-h">Manage Account, Plan &amp; Developer Permissions</h3>
+        <div class="grid2">
+          <div class="field">
+            <label for="um-email">Target User Email</label>
+            <input type="email" id="um-email" maxlength="254" placeholder="user@example.com">
+          </div>
+          <div class="field">
+            <label for="um-plan">Assign Plan</label>
+            <select id="um-plan">
+              <option value="free">Free</option>
+              <option value="pro">Pro</option>
+              <option value="ultra">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="field">
+            <label for="um-credits">Pro Credits Balance</label>
+            <input type="number" id="um-credits" min="0" max="10000" value="0">
+          </div>
+          <div class="field">
+            <span class="field-label">Account Actions</span>
+            <div class="pw-row">
+              <button type="button" class="btn sm" id="um-save-plan-btn">Update Plan &amp; Credits</button>
+              <button type="button" class="btn sm danger" id="um-revoke-btn">Revoke Sessions</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- OWNER-ONLY: Role & Granular Developer Permissions -->
+        <div class="dev-owner-box" id="um-role-box" hidden>
+          <h4 class="dev-sub-h">Owner-Only: Assign Role &amp; Granular Developer Permissions</h4>
+          <p class="tiny">Developers never automatically receive Owner permissions. Select the exact capabilities this Developer is allowed to use.</p>
+          <div class="field">
+            <label for="um-role">Account Role</label>
+            <select id="um-role">
+              <option value="user">User (Standard Application Access Only)</option>
+              <option value="developer">Developer (Granular Dashboard Access)</option>
+            </select>
+          </div>
+          <div class="dev-perm-grid" id="um-perm-grid"></div>
+          <button type="button" class="btn sm" id="um-save-role-btn">Save Role &amp; Permissions</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 6: SECURITY AUDIT -->
+    <section class="card dev-sec" id="sec-security" aria-labelledby="h-sec-security">
+      <div class="dev-sec-head">
+        <h2 id="h-sec-security">6. Security Audit &amp; Intrusion Alerts</h2>
+        <span class="pill live">RBAC Enforced</span>
+      </div>
+
+      <ul class="dev-posture-list" id="security-posture-list">
+        <li><strong>Server-Side RBAC:</strong> Every <code>/api/admin/*</code> route validates session HMAC, Redis session liveness, role, and granular permission on the server.</li>
+        <li><strong>Owner Protection:</strong> Owner role is bound in constant time to <code>OWNER_EMAIL</code>; public users cannot register as Owner and Developers cannot escalate privileges.</li>
+        <li><strong>Strict CSP:</strong> <code>script-src 'self'; style-src 'self'; frame-ancestors 'none'</code> with zero external scripts or inline styles.</li>
+        <li><strong>Log Redaction:</strong> Passwords, OTP codes, session tokens, blob URLs, and raw secrets are stripped before storage or display.</li>
+      </ul>
+
+      <h3 class="dev-sub-h">Recent Security Alerts</h3>
+      <p class="tiny" id="security-logs-empty">No security alerts triggered.</p>
+      <ul class="dev-log-list" id="security-logs-list"></ul>
+    </section>
+
+    <!-- SECTION 7: PERFORMANCE MONITOR -->
+    <section class="card dev-sec" id="sec-perf" aria-labelledby="h-sec-perf">
+      <div class="dev-sec-head">
+        <h2 id="h-sec-perf">7. Application Performance &amp; Runtime Telemetry</h2>
+      </div>
+      <div class="acct-grid dev-stat-grid">
+        <div class="acct-stat">
+          <span class="stat-k">Average API Latency</span>
+          <span class="stat-v" id="perf-avg-ms">0 ms</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">RSS Memory</span>
+          <span class="stat-v" id="perf-rss">0 MB</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">V8 Heap Used / Total</span>
+          <span class="stat-v" id="perf-heap">0 / 0 MB</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">Node.js Runtime</span>
+          <span class="stat-v" id="perf-node-ver">—</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">Requests Today (UTC)</span>
+          <span class="stat-v" id="perf-today-req">0</span>
+        </div>
+        <div class="acct-stat">
+          <span class="stat-k">Requests Yesterday (UTC)</span>
+          <span class="stat-v" id="perf-yest-req">0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 8: APPLICATION SETTINGS -->
+    <section class="card dev-sec" id="sec-settings" aria-labelledby="h-sec-settings">
+      <div class="dev-sec-head">
+        <h2 id="h-sec-settings">8. Runtime Application Settings</h2>
+      </div>
+      <p class="tiny">Changes take effect immediately across all serverless invocations via Upstash Redis.</p>
+
+      <div class="dev-settings-grid">
+        <label class="chk" for="cfg-maintenance">
+          <input type="checkbox" id="cfg-maintenance">
+          <span><strong>Maintenance Mode</strong> (pauses new uploads for non-staff users)</span>
+        </label>
+        <label class="chk" for="cfg-uploads">
+          <input type="checkbox" id="cfg-uploads" checked>
+          <span><strong>Public Uploads Enabled</strong> (uncheck to halt non-owner PDF creation)</span>
+        </label>
+        <label class="chk" for="cfg-signups">
+          <input type="checkbox" id="cfg-signups" checked>
+          <span><strong>New Account Sign-Ups Enabled</strong> (existing users &amp; Owner can always sign in)</span>
+        </label>
+      </div>
+
+      <div class="field">
+        <label for="cfg-announcement">Maintenance / System Banner Message (optional)</label>
+        <input type="text" id="cfg-announcement" maxlength="240" placeholder="e.g. Scheduled maintenance in progress.">
+      </div>
+
+      <button type="button" class="btn sm" id="cfg-save-btn">Save Application Settings</button>
+    </section>
+
+    <!-- SECTION 9: DEVELOPER ACTIVITY LOGS -->
+    <section class="card dev-sec" id="sec-audit" aria-labelledby="h-sec-audit">
+      <div class="dev-sec-head">
+        <h2 id="h-sec-audit">9. Developer Activity Audit Logs</h2>
+        <span class="tiny" id="audit-logs-count">0 actions</span>
+      </div>
+      <p class="tiny" id="audit-logs-empty">No administrative actions logged yet.</p>
+      <ul class="dev-log-list" id="audit-logs-list"></ul>
+    </section>
+
+  </div>
+
+</div>
+
+<footer class="ck-foot">
+  <a class="ck-link" href="https://codekon.in" target="_blank" rel="noopener noreferrer">
+    <span class="ck-by">Designed by</span>
+    <span class="ck-mark"><span class="ck-code">CODE</span><span class="ck-kon">KON</span></span>
+  </a>
+</footer>
+<script type="module" src="/js/dev.js"></script>
+</body>
+</html>

@@ -10,6 +10,7 @@ import {
   cancelRazorpaySubscription,
   verifyWebhookSignature,
 } from './_lib/razorpay.js';
+import { recordSecurityAlert } from './_lib/telemetry.js';
 
 const WEBHOOK_IDEMPOTENCY_TTL = 30 * 86400; // 30 days
 
@@ -70,6 +71,12 @@ async function handleWebhook(req, res) {
   const rawBuf = await readRawBody(req, 256 * 1024);
   const sig = req.headers['x-razorpay-signature'];
   if (!verifyWebhookSignature(rawBuf, sig)) {
+    await recordSecurityAlert({
+      type: 'webhook_bad_signature',
+      route: '/api/billing/webhook',
+      actor: sha256(ip),
+      detail: 'Rejected unsigned or forged Razorpay webhook',
+    });
     return fail(res, 401, 'invalid_signature', 'Webhook signature verification failed.');
   }
 
@@ -203,3 +210,4 @@ export default wrap(async (req, res) => {
   if (action === 'cancel') return handleCancel(req, res);
   return fail(res, 404, 'not_found', 'Unknown billing endpoint.');
 });
+

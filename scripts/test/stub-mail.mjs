@@ -22,3 +22,4 @@ export async function sendOtpEmail({ to, code }) {
   outbox.set(clean, entry);
   return { sent: true };
 }
+

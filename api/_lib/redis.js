@@ -45,8 +45,27 @@ export const K = {
   webhookEvent: (evtId) => `vp:wh:${evtId}`,
   // userLinks(uid)      -> sorted set (score = createdAt ms) of JSON link summaries for paid cross-device history
   userLinks: (uid) => `vp:ulinks:${uid}`,
+
+  // Owner / Developer access, telemetry, logs & runtime settings
+  // usersIndex          -> sorted set (score = createdAt ms, member = emailHash) of all registered accounts
+  usersIndex: 'vp:users',
+  // userSessions(uid)   -> set of active sidHash strings for a user (allows instant session revocation)
+  userSessions: (uid) => `vp:usess:${uid}`,
+  // activeUsers(ymd)    -> set of active user IDs on UTC date YYYY-MM-DD (7d TTL)
+  activeUsers: (ymd) => `vp:active:${ymd}`,
+  // apiMetrics(ymd)     -> hash of route request counts, status classes (2xx/4xx/5xx) & latency ms (7d TTL)
+  apiMetrics: (ymd) => `vp:metrics:api:${ymd}`,
+  // errorLogs           -> capped list (max 100) of sanitized server errors
+  errorLogs: 'vp:logs:err',
+  // securityLogs        -> capped list (max 100) of security audit events (lockouts, bad signatures, RBAC denials)
+  securityLogs: 'vp:logs:sec',
+  // devAuditLogs        -> capped list (max 200) of Owner/Developer administrative actions
+  devAuditLogs: 'vp:logs:audit',
+  // appSettings         -> JSON object of runtime application settings
+  appSettings: 'vp:settings',
 };
 
 export const TOMBSTONE_TTL = 60 * 60 * 24; // 24h — lets expired links show the expired page
 export const BLOB_RECORD_GRACE = 60 * 60 * 24 * 7; // blob list outlives the doc so cleanup can still find orphans
 export const DAILY_COUNTER_TTL = 60 * 60 * 48; // 48h — expires automatically after the UTC day ends
+export const METRICS_TTL = 60 * 60 * 24 * 7; // 7d — keeps rolling 7-day telemetry window

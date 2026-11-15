@@ -15,6 +15,7 @@ process.env.KV_REST_API_TOKEN = 'test-token';
 process.env.BLOB_READ_WRITE_TOKEN = 'test-blob-token';
 process.env.CRON_SECRET = 'cron-test-secret';
 process.env.RAZORPAY_WEBHOOK_SECRET = 'test-razorpay-webhook-secret-value';
+process.env.OWNER_EMAIL = 'codekon10@gmail.com';
 
 const { store: blobStore } = await import('./stub-blob.mjs');
 const { store: redisStore } = await import('./stub-redis.mjs');
@@ -31,6 +32,7 @@ const remove = (await import('../../api/delete.js')).default;
 const cleanup = (await import('../../api/cleanup.js')).default;
 const auth = (await import('../../api/auth.js')).default;
 const billing = (await import('../../api/billing.js')).default;
+const admin = (await import('../../api/admin.js')).default;
 const { randomId, randomToken, sha256, signUserSession } = await import('../../api/_lib/crypto.js');
 const { K } = await import('../../api/_lib/redis.js');
 const { SESSION_COOKIE, PLANS } = await import('../../api/_lib/plans.js');
@@ -946,6 +948,280 @@ section('16. Payments — Razorpay redirect checkout, webhook signature, idempot
     'lapsed subscription resolves to free on the next check without deleting user record',
     meLapsed.statusCode === 200 && meLapsed.json.plan === 'free' && meLapsed.json.email === 'buyer@example.com',
     JSON.stringify(meLapsed.json),
+  );
+}
+
+/* ------------------ 17. Owner / Developer Access & RBAC (/api/admin/*) */
+
+section('17. Owner / Developer Access & RBAC');
+{
+  async function otpSignIn(email, ip) {
+    await call(auth, {
+      url: '/api/auth/request-code',
+      ip,
+      body: { email },
+    });
+    const code = mailOutbox.get(email.toLowerCase())?.code;
+    const ver = await call(auth, {
+      url: '/api/auth/verify',
+      ip,
+      body: { email, code },
+    });
+    const setCookie = String(ver.getHeader('set-cookie') || '');
+    const cookiePair = setCookie.split(';')[0];
+    return { ver, cookie: cookiePair };
+  }
+
+  // 1. Unauthenticated requests to /api/admin/* are rejected with 401
+  const unauthAdmin = await call(admin, {
+    url: '/api/admin/overview',
+    method: 'GET',
+    ip: '198.51.100.200',
+  });
+  check('unauthenticated request to /api/admin/overview is rejected (401)', unauthAdmin.statusCode === 401);
+
+  // 2. Public user registration always gets role='user' and is rejected from /api/admin/* with 403
+  const normal = await otpSignIn('public-user@example.com', '198.51.100.201');
+  check(
+    'public user sign-in receives role="user" and zero developer permissions',
+    normal.ver.statusCode === 200
+      && normal.ver.json.role === 'user'
+      && Array.isArray(normal.ver.json.permissions)
+      && normal.ver.json.permissions.length === 0,
+    JSON.stringify(normal.ver.json),
+  );
+
+  const userAdminAttempt = await call(admin, {
+    url: '/api/admin/overview',
+    method: 'GET',
+    ip: '198.51.100.201',
+    headers: { cookie: normal.cookie },
+  });
+  check('normal user is blocked from /api/admin/overview (403)', userAdminAttempt.statusCode === 403);
+
+  // 3. Owner account (codekon10@gmail.com) receives role='owner', full permissions, and Ultra plan
+  const owner = await otpSignIn('codekon10@gmail.com', '198.51.100.202');
+  check(
+    'configured Owner account (codekon10@gmail.com) receives role="owner" and ultra plan',
+    owner.ver.statusCode === 200
+      && owner.ver.json.role === 'owner'
+      && owner.ver.json.plan === 'ultra'
+      && owner.ver.json.permissions.includes('devs:manage'),
+    JSON.stringify(owner.ver.json),
+  );
+
+  // 4. Owner can access real-data overview, metrics, users, and database schema
+  const ov = await call(admin, {
+    url: '/api/admin/overview',
+    method: 'GET',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+  });
+  check(
+    'Owner can read /api/admin/overview with real counts, DB health, and redacted integrations',
+    ov.statusCode === 200
+      && ov.json.ok === true
+      && ov.json.health.dbConnected === true
+      && ov.json.counts.totalRegisteredUsers >= 2
+      && typeof ov.json.integrations.ownerConfigured === 'boolean',
+    JSON.stringify(ov.json),
+  );
+
+  // 5. Destructive / write operations require { confirm: 'CONFIRM' }
+  const noConfirm = await call(admin, {
+    url: '/api/admin/users',
+    method: 'POST',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+    body: {
+      subAction: 'set_role',
+      email: 'dev-staff@example.com',
+      role: 'developer',
+      permissions: ['overview:read', 'logs:read'],
+    },
+  });
+  check(
+    'admin write action without confirmation token is rejected (400 confirmation_required)',
+    noConfirm.statusCode === 400 && noConfirm.json.error === 'confirmation_required',
+    JSON.stringify(noConfirm.json),
+  );
+
+  // 6. Owner promotes dev-staff@example.com to 'developer' with granular read-only permissions
+  const promoteDev = await call(admin, {
+    url: '/api/admin/users',
+    method: 'POST',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+    body: {
+      subAction: 'set_role',
+      email: 'dev-staff@example.com',
+      role: 'developer',
+      permissions: ['overview:read', 'logs:read', 'devs:manage'], // 'devs:manage' must be stripped automatically
+      confirm: 'CONFIRM',
+    },
+  });
+  check(
+    'Owner can assign Developer role with granular permissions (and devs:manage is never granted to Developers)',
+    promoteDev.statusCode === 200
+      && promoteDev.json.user.role === 'developer'
+      && promoteDev.json.user.permissions.includes('overview:read')
+      && promoteDev.json.user.permissions.includes('logs:read')
+      && !promoteDev.json.user.permissions.includes('devs:manage'),
+    JSON.stringify(promoteDev.json),
+  );
+
+  // 7. Developer signs in and can access permitted tools, but is blocked from unpermitted tools & privilege escalation
+  const devUser = await otpSignIn('dev-staff@example.com', '198.51.100.203');
+  check(
+    'Developer sign-in returns role="developer" and exact assigned permissions',
+    devUser.ver.statusCode === 200 && devUser.ver.json.role === 'developer',
+  );
+
+  const devOv = await call(admin, {
+    url: '/api/admin/overview',
+    method: 'GET',
+    ip: '198.51.100.203',
+    headers: { cookie: devUser.cookie },
+  });
+  check('Developer with overview:read can access /api/admin/overview', devOv.statusCode === 200);
+
+  const devSettingsTry = await call(admin, {
+    url: '/api/admin/settings',
+    method: 'POST',
+    ip: '198.51.100.203',
+    headers: { cookie: devUser.cookie },
+    body: { maintenanceMode: true, confirm: 'CONFIRM' },
+  });
+  check(
+    'Developer without settings:write is blocked from modifying app settings (403)',
+    devSettingsTry.statusCode === 403,
+  );
+
+  const devEscalateTry = await call(admin, {
+    url: '/api/admin/users',
+    method: 'POST',
+    ip: '198.51.100.203',
+    headers: { cookie: devUser.cookie },
+    body: {
+      subAction: 'set_role',
+      email: 'dev-staff@example.com',
+      role: 'owner',
+      confirm: 'CONFIRM',
+    },
+  });
+  check(
+    'Developer attempting privilege escalation via /api/admin/users is blocked (403)',
+    devEscalateTry.statusCode === 403,
+  );
+
+  // 8. Owner account itself cannot be demoted or modified via set_role
+  const demoteOwnerTry = await call(admin, {
+    url: '/api/admin/users',
+    method: 'POST',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+    body: {
+      subAction: 'set_role',
+      email: 'codekon10@gmail.com',
+      role: 'user',
+      confirm: 'CONFIRM',
+    },
+  });
+  check(
+    'Owner account cannot be demoted (400 cannot_modify_owner)',
+    demoteOwnerTry.statusCode === 400 && demoteOwnerTry.json.error === 'cannot_modify_owner',
+  );
+
+  // 9. Document inspector redacts secrets, hashes, and blob URLs
+  const secretDoc = await call(create, {
+    url: '/api/create',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+    body: { pages: 1, password: 'top-secret-password', watermark: 'Confidential' },
+  });
+  const inspectRes = await call(admin, {
+    url: `/api/admin/database?docId=${encodeURIComponent(secretDoc.json.id)}`,
+    method: 'GET',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+  });
+  const inspected = inspectRes.json?.inspectedDoc || {};
+  check(
+    'Document inspector returns metadata while stripping passwordHash, salt, token hashes, and blobUrls',
+    inspectRes.statusCode === 200
+      && inspected.id === secretDoc.json.id
+      && inspected.hasPassword === true
+      && inspected.passwordHash === undefined
+      && inspected.salt === undefined
+      && inspected.uploadTokenHash === undefined
+      && inspected.ownerTokenHash === undefined
+      && inspected.blobUrls === undefined,
+    JSON.stringify(inspected),
+  );
+
+  // 10. Runtime application settings (maintenance mode) block public uploads while allowing Owner uploads
+  const enableMaint = await call(admin, {
+    url: '/api/admin/settings',
+    method: 'POST',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+    body: {
+      maintenanceMode: true,
+      uploadsEnabled: true,
+      signupsEnabled: true,
+      announcement: 'Maintenance window active.',
+      confirm: 'CONFIRM',
+    },
+  });
+  check('Owner can enable maintenanceMode in runtime settings', enableMaint.statusCode === 200 && enableMaint.json.settings.maintenanceMode === true);
+
+  const anonDuringMaint = await call(create, {
+    url: '/api/create',
+    ip: '198.51.100.204',
+    body: { pages: 1 },
+  });
+  const ownerDuringMaint = await call(create, {
+    url: '/api/create',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+    body: { pages: 1 },
+  });
+  check(
+    'maintenanceMode blocks public uploads (503) while still allowing Owner uploads (201)',
+    anonDuringMaint.statusCode === 503 && ownerDuringMaint.statusCode === 201,
+    `anon=${anonDuringMaint.statusCode}, owner=${ownerDuringMaint.statusCode}`,
+  );
+
+  // Restore maintenanceMode=false
+  await call(admin, {
+    url: '/api/admin/settings',
+    method: 'POST',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+    body: {
+      maintenanceMode: false,
+      uploadsEnabled: true,
+      signupsEnabled: true,
+      announcement: '',
+      confirm: 'CONFIRM',
+    },
+  });
+
+  // 11. Security logs and Developer Activity Audit logs recorded real events without leaking secrets
+  const logsRes = await call(admin, {
+    url: '/api/admin/logs',
+    method: 'GET',
+    ip: '198.51.100.202',
+    headers: { cookie: owner.cookie },
+  });
+  check(
+    'Security and Developer Activity Audit logs record real events',
+    logsRes.statusCode === 200
+      && Array.isArray(logsRes.json.securityLogs)
+      && logsRes.json.securityLogs.length >= 3
+      && Array.isArray(logsRes.json.devAuditLogs)
+      && logsRes.json.devAuditLogs.length >= 2,
+    `sec=${logsRes.json?.securityLogs?.length}, audit=${logsRes.json?.devAuditLogs?.length}`,
   );
 }
 

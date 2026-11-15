@@ -15,6 +15,11 @@ import {
   serializePlan,
   resolvePlanContext,
 } from './plans.js';
+import {
+  resolveUserRoleAndPermissions,
+  isConfiguredOwnerEmail,
+  ROLES,
+} from './rbac.js';
 
 export const OTP_TTL_SECONDS = 600;               // 10 minutes
 export const OTP_MAX_ATTEMPTS = 5;
@@ -71,10 +76,17 @@ export async function readUserById(uid) {
 
 export async function writeUser(emailHash, user) {
   const redis = getRedis();
+  const { role, permissions } = resolveUserRoleAndPermissions(user);
+  user.role = role;
+  user.permissions = role === ROLES.DEVELOPER ? permissions : [];
   await redis.set(K.user(emailHash), JSON.stringify(user));
   if (user.id) {
     await redis.set(K.userById(user.id), emailHash);
   }
+  await redis.zadd(K.usersIndex, {
+    score: Number(user.createdAt) || Date.now(),
+    member: emailHash,
+  });
 }
 
 export async function findOrCreateUser(email, now = Date.now()) {
@@ -86,6 +98,8 @@ export async function findOrCreateUser(email, now = Date.now()) {
       id: `usr_${randomId(9)}`,
       email: clean,
       createdAt: now,
+      role: isConfiguredOwnerEmail(clean) ? ROLES.OWNER : ROLES.USER,
+      permissions: [],
       plan: 'free',
       planPeriodEnd: null,
       cancelAtPeriodEnd: false,
@@ -95,6 +109,12 @@ export async function findOrCreateUser(email, now = Date.now()) {
       studentEligible: false,
     };
     await writeUser(emailHash, user);
+  } else {
+    const resolved = resolveUserRoleAndPermissions(user);
+    if (user.role !== resolved.role) {
+      user.role = resolved.role;
+    }
+    await writeUser(emailHash, user);
   }
   return { user, emailHash };
 }
@@ -102,6 +122,7 @@ export async function findOrCreateUser(email, now = Date.now()) {
 export async function createAuthSession(user, emailHash, now = Date.now()) {
   const redis = getRedis();
   const sid = randomToken(24);
+  const sidHash = sha256(sid);
   const expiresAt = now + SESSION_TTL_SECONDS * 1000;
   const sessionRecord = {
     id: sid,
@@ -110,9 +131,28 @@ export async function createAuthSession(user, emailHash, now = Date.now()) {
     createdAt: now,
     expiresAt,
   };
-  await redis.set(K.session(sha256(sid)), JSON.stringify(sessionRecord), { ex: SESSION_TTL_SECONDS });
+  await redis.set(K.session(sidHash), JSON.stringify(sessionRecord), { ex: SESSION_TTL_SECONDS });
+  if (user.id) {
+    await redis.sadd(K.userSessions(user.id), sidHash);
+  }
   const token = signUserSession({ uid: user.id, sid, expiresAt });
   return { token, sid, expiresAt };
+}
+
+export async function revokeAllUserSessions(uid) {
+  if (!uid) return 0;
+  const redis = getRedis();
+  const setKey = K.userSessions(uid);
+  const sidHashes = await redis.smembers(setKey);
+  let count = 0;
+  if (Array.isArray(sidHashes)) {
+    for (const h of sidHashes) {
+      await redis.del(K.session(h));
+      count++;
+    }
+  }
+  await redis.del(setKey);
+  return count;
 }
 
 export async function revokeRequestSession(req) {
@@ -122,7 +162,11 @@ export async function revokeRequestSession(req) {
   const verified = verifyUserSession(raw);
   if (!verified) return false;
   const redis = getRedis();
-  await redis.del(K.session(sha256(verified.sid)));
+  const sidHash = sha256(verified.sid);
+  await redis.del(K.session(sidHash));
+  if (verified.uid) {
+    await redis.srem(K.userSessions(verified.uid), sidHash);
+  }
   return true;
 }
 
@@ -194,6 +238,8 @@ export async function buildMePayload(req, now = Date.now()) {
     return {
       authenticated: false,
       email: null,
+      role: ROLES.USER,
+      permissions: [],
       plan: 'free',
       basePlan: 'free',
       usingCredit: false,
@@ -214,6 +260,8 @@ export async function buildMePayload(req, now = Date.now()) {
   return {
     authenticated: true,
     email: ctx.user.email,
+    role: ctx.role,
+    permissions: ctx.permissions,
     plan: planKey,
     basePlan: status.basePlan,
     usingCredit: status.usingCredit,
@@ -226,3 +274,4 @@ export async function buildMePayload(req, now = Date.now()) {
     links,
   };
 }
+

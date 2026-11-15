@@ -16,6 +16,10 @@
     {
       "source": "/api/billing/:action",
       "destination": "/api/billing?action=:action"
+    },
+    {
+      "source": "/api/admin/:action",
+      "destination": "/api/admin?action=:action"
     }
   ],
   "crons": [

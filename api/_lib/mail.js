@@ -53,3 +53,4 @@ export async function sendOtpEmail({ to, code }) {
 
   return sendEmail({ to, subject, text, html });
 }
+

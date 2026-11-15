@@ -1,3 +1,5 @@
+import { recordApiMetric, recordErrorLog } from './telemetry.js';
+
 export const MAX_BODY_BYTES = 2 * 1024 * 1024; // hard stop well under Vercel's 4.5 MB request limit
 
 export function send(res, status, body, headers = {}) {
@@ -95,14 +97,28 @@ export function looksLikeJpeg(buf) {
 
 export function wrap(handler) {
   return async (req, res) => {
+    const startMs = Date.now();
     try {
       await handler(req, res);
     } catch (err) {
-      if (err?.tooLarge) return fail(res, 413, 'too_large', 'Request body is too large.');
-      if (err?.badJson) return fail(res, 400, 'bad_request', 'Malformed JSON body.');
-      // Never log tokens, passwords or file bytes — message only.
-      console.error('[vanishly] handler error:', err?.message || 'unknown');
-      if (!res.writableEnded) fail(res, 500, 'server_error', 'Something went wrong.');
+      if (err?.tooLarge) {
+        fail(res, 413, 'too_large', 'Request body is too large.');
+      } else if (err?.badJson) {
+        fail(res, 400, 'bad_request', 'Malformed JSON body.');
+      } else {
+        // Never log tokens, passwords or file bytes — message only.
+        console.error('[vanishly] handler error:', err?.message || 'unknown');
+        await recordErrorLog({
+          route: req.url,
+          method: req.method,
+          status: 500,
+          code: 'server_error',
+          message: err?.message || 'unknown',
+        });
+        if (!res.writableEnded) fail(res, 500, 'server_error', 'Something went wrong.');
+      }
+    } finally {
+      await recordApiMetric(req.url, req.method, res.statusCode || 200, Date.now() - startMs);
     }
   };
 }

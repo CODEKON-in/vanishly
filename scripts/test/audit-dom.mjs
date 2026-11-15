@@ -17,6 +17,7 @@ const pairs = [
   ['public/viewer.html', 'public/js/viewer.js'],
   ['public/pricing.html', 'public/js/pricing.js'],
   ['public/account.html', 'public/js/account.js'],
+  ['public/dev.html', 'public/js/dev.js'],
 ];
 
 const problems = [];
@@ -58,7 +59,7 @@ for (const [htmlPath, jsPath] of pairs) {
 }
 
 // Classes the JS adds at runtime must exist too.
-for (const jsPath of ['public/js/app.js', 'public/js/viewer.js', 'public/js/pricing.js', 'public/js/account.js']) {
+for (const jsPath of ['public/js/app.js', 'public/js/viewer.js', 'public/js/pricing.js', 'public/js/account.js', 'public/js/dev.js']) {
   const js = await read(jsPath);
   for (const m of js.matchAll(/classList\.(?:add|toggle|remove)\('([^']+)'/g)) {
     if (!cssClasses.has(m[1])) problems.push(`${jsPath}: runtime class "${m[1]}" is not defined in style.css`);

@@ -11,6 +11,8 @@ import {
   ALL_PAID_EXPIRY_CHOICES,
   ALL_PAID_LIFETIME_CHOICES,
 } from './_lib/plans.js';
+import { isStaffRole, ROLES } from './_lib/rbac.js';
+import { getAppSettings } from './_lib/telemetry.js';
 
 function pickChoice(value, choices, fallback) {
   const n = Number(value);
@@ -31,7 +33,12 @@ export default wrap(async (req, res) => {
 
   // The SERVER resolves the plan from the authenticated session (or defaults to 'free').
   // Any `plan` field sent by the client is ignored.
-  const { user, session, planKey, plan, actor, usingCredit } = await resolvePlanContext(req, now);
+  const { user, session, role, planKey, plan, actor, usingCredit } = await resolvePlanContext(req, now);
+
+  const settings = await getAppSettings();
+  if ((settings.maintenanceMode && !isStaffRole(role)) || (!settings.uploadsEnabled && role !== ROLES.OWNER)) {
+    return fail(res, 503, 'maintenance', settings.announcement || 'Uploads are temporarily paused for maintenance.');
+  }
 
   const pages = Number(body.pages);
   if (!Number.isInteger(pages) || pages < 1) {

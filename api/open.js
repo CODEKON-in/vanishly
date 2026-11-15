@@ -1,10 +1,11 @@
 import { wrap, methodGuard, readJson, fail, ok, clientIp } from './_lib/http.js';
 import { getRedis, K } from './_lib/redis.js';
-import { isValidId, verifyPassword, randomToken, signSession } from './_lib/crypto.js';
+import { isValidId, verifyPassword, randomToken, signSession, sha256 } from './_lib/crypto.js';
 import { loadLive, destroyDoc, writeDoc } from './_lib/doc.js';
 import { rateLimit } from './_lib/ratelimit.js';
 import { isBot } from './_lib/bots.js';
 import { LIMITS } from './_lib/limits.js';
+import { recordSecurityAlert } from './_lib/telemetry.js';
 
 /**
  * Claiming the first open has to be atomic: two recipients tapping "Open" at
@@ -78,6 +79,12 @@ export default wrap(async (req, res) => {
       if (attempts >= LIMITS.PW_MAX_ATTEMPTS) {
         await redis.set(K.pwLock(id), '1', { ex: LIMITS.PW_LOCK_SECONDS });
         await redis.del(K.pwFail(id));
+        await recordSecurityAlert({
+          type: 'doc_pw_lockout',
+          route: '/api/open',
+          actor: sha256(ip),
+          detail: `Document ${id} locked after ${LIMITS.PW_MAX_ATTEMPTS} failed password attempts`,
+        });
         return fail(res, 423, 'locked', 'Too many wrong passwords. This link is locked for 10 minutes.');
       }
       return fail(res, 401, 'bad_password', `Wrong password. ${LIMITS.PW_MAX_ATTEMPTS - attempts} attempts left.`);
