@@ -18,6 +18,7 @@ process.env.KV_REST_API_URL ||= 'https://redis.mock';
 process.env.KV_REST_API_TOKEN ||= 'mock';
 process.env.BLOB_READ_WRITE_TOKEN ||= 'mock';
 process.env.CRON_SECRET ||= 'mock-cron-secret';
+process.env.RAZORPAY_WEBHOOK_SECRET ||= 'mock-razorpay-webhook-secret';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const pub = join(root, 'public');
@@ -26,6 +27,7 @@ const PORT = Number(process.env.PORT || 3000);
 const { store: blobStore } = await import('./stub-blob.mjs');
 
 const authHandler = (await import('../../api/auth.js')).default;
+const billingHandler = (await import('../../api/billing.js')).default;
 
 const routes = {
   '/api/create': (await import('../../api/create.js')).default,
@@ -42,6 +44,10 @@ const routes = {
   '/api/auth/verify': authHandler,
   '/api/auth/logout': authHandler,
   '/api/auth/me': authHandler,
+  '/api/billing': billingHandler,
+  '/api/billing/checkout': billingHandler,
+  '/api/billing/webhook': billingHandler,
+  '/api/billing/cancel': billingHandler,
 };
 
 // /api/page fetches blob URLs server-side; serve them from the in-memory store.

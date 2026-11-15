@@ -11,7 +11,7 @@
     "vendor": "node scripts/vendor-pdfjs.mjs",
     "postinstall": "node scripts/vendor-pdfjs.mjs",
     "dev": "vercel dev",
-    "check": "node --check api/_lib/plans.js && node --check api/_lib/mail.js && node --check api/_lib/auth.js && node --check api/auth.js && node --check api/create.js && node --check api/upload-page.js && node --check api/finalize.js && node --check api/meta.js && node --check api/open.js && node --check api/page.js && node --check api/expire.js && node --check api/delete.js && node --check api/cleanup.js",
+    "check": "node --check api/_lib/plans.js && node --check api/_lib/mail.js && node --check api/_lib/auth.js && node --check api/_lib/razorpay.js && node --check api/auth.js && node --check api/billing.js && node --check api/create.js && node --check api/upload-page.js && node --check api/finalize.js && node --check api/meta.js && node --check api/open.js && node --check api/page.js && node --check api/expire.js && node --check api/delete.js && node --check api/cleanup.js",
     "test": "node --import ./scripts/test/register.mjs scripts/test/selftest.mjs",
     "dev:mock": "node --import ./scripts/test/register.mjs scripts/test/devserver.mjs",
     "audit": "node scripts/test/audit-dom.mjs",

@@ -7,11 +7,14 @@
  * physically deleted. What it does not prove: Upstash's own behaviour, which
  * only a real deployment exercises. Run `npm test`.
  */
+import { createHmac } from 'node:crypto';
+
 process.env.SECRET = 'test-secret-value-long-enough-for-hmac';
 process.env.KV_REST_API_URL = 'https://redis.test';
 process.env.KV_REST_API_TOKEN = 'test-token';
 process.env.BLOB_READ_WRITE_TOKEN = 'test-blob-token';
 process.env.CRON_SECRET = 'cron-test-secret';
+process.env.RAZORPAY_WEBHOOK_SECRET = 'test-razorpay-webhook-secret-value';
 
 const { store: blobStore } = await import('./stub-blob.mjs');
 const { store: redisStore } = await import('./stub-redis.mjs');
@@ -27,6 +30,7 @@ const expire = (await import('../../api/expire.js')).default;
 const remove = (await import('../../api/delete.js')).default;
 const cleanup = (await import('../../api/cleanup.js')).default;
 const auth = (await import('../../api/auth.js')).default;
+const billing = (await import('../../api/billing.js')).default;
 const { randomId, randomToken, sha256, signUserSession } = await import('../../api/_lib/crypto.js');
 const { K } = await import('../../api/_lib/redis.js');
 const { SESSION_COOKIE, PLANS } = await import('../../api/_lib/plans.js');
@@ -776,6 +780,172 @@ section('15. Accounts — email OTP, sessions, logout, and /api/auth/me');
     'replaying a logged-out session cookie resolves as unauthenticated free',
     meAfterLogout.json.authenticated === false && meAfterLogout.json.plan === 'free',
     JSON.stringify(meAfterLogout.json),
+  );
+}
+
+section('16. Payments — Razorpay redirect checkout, webhook signature, idempotency, credits, and lapsed fallback');
+{
+  function signWebhook(bodyObj) {
+    const raw = Buffer.from(JSON.stringify(bodyObj), 'utf8');
+    const sig = createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET).update(raw).digest('hex');
+    return { raw, sig };
+  }
+
+  const buyer = seedSession('free', { email: 'buyer@example.com' });
+
+  // Unauthenticated checkout is rejected
+  const unauthCo = await call(billing, {
+    url: '/api/billing/checkout',
+    body: { plan: 'pro', period: 'monthly' },
+  });
+  check('checkout requires authentication (401)', unauthCo.statusCode === 401);
+
+  // Authenticated subscription checkout 302-redirects to Razorpay hosted page
+  const subCo = await call(billing, {
+    url: '/api/billing/checkout',
+    headers: { cookie: buyer.cookie },
+    body: { plan: 'pro', period: 'yearly' },
+  });
+  check(
+    'checkout creates a subscription and 302-redirects to Razorpay hosted URL',
+    subCo.statusCode === 302 && /^https:\/\/rzp\.io\//.test(String(subCo.getHeader('location'))),
+    `status ${subCo.statusCode}, location ${subCo.getHeader('location')}`,
+  );
+
+  // Credit pack checkout 302-redirects to Razorpay payment link
+  const packCo = await call(billing, {
+    url: '/api/billing/checkout',
+    headers: { cookie: buyer.cookie },
+    body: { plan: 'credits' },
+  });
+  check(
+    'credit pack checkout 302-redirects to Razorpay hosted payment link',
+    packCo.statusCode === 302 && /^https:\/\/rzp\.io\//.test(String(packCo.getHeader('location'))),
+    `status ${packCo.statusCode}`,
+  );
+
+  // Unsigned or bad-signature webhooks are rejected before modifying state
+  const creditEventBody = {
+    id: 'evt_credit_pack_1',
+    event: 'payment_link.paid',
+    payload: {
+      payment_link: {
+        entity: {
+          id: 'plink_123',
+          notes: { uid: buyer.uid, pack: 'credits_20' },
+        },
+      },
+    },
+  };
+
+  const unsignedWh = await call(billing, {
+    url: '/api/billing/webhook',
+    body: creditEventBody,
+  });
+  check('unsigned webhook is rejected with 401', unsignedWh.statusCode === 401);
+
+  const badSigWh = await call(billing, {
+    url: '/api/billing/webhook',
+    headers: { 'x-razorpay-signature': 'deadbeef00000000' },
+    body: creditEventBody,
+  });
+  check('forged webhook signature is rejected with 401', badSigWh.statusCode === 401);
+
+  const meBeforeWh = await call(auth, { url: '/api/auth/me', method: 'GET', headers: { cookie: buyer.cookie } });
+  check('rejected webhooks did not grant credits or upgrade plan', meBeforeWh.json.credits === 0 && meBeforeWh.json.plan === 'free');
+
+  // Valid signed payment_link.paid webhook grants 20 credits
+  const { raw: creditRaw, sig: creditSig } = signWebhook(creditEventBody);
+  const goodCreditWh = await call(billing, {
+    url: '/api/billing/webhook',
+    headers: {
+      'x-razorpay-signature': creditSig,
+      'x-razorpay-event-id': 'evt_credit_pack_1',
+    },
+    body: creditRaw,
+  });
+  check('valid signed payment_link.paid webhook succeeds', goodCreditWh.statusCode === 200 && goodCreditWh.json.ok === true);
+
+  // Replaying the exact same webhook event is idempotent and does NOT double-credit
+  const replayCreditWh = await call(billing, {
+    url: '/api/billing/webhook',
+    headers: {
+      'x-razorpay-signature': creditSig,
+      'x-razorpay-event-id': 'evt_credit_pack_1',
+    },
+    body: creditRaw,
+  });
+  const meAfterCredit = await call(auth, { url: '/api/auth/me', method: 'GET', headers: { cookie: buyer.cookie } });
+  check(
+    'replayed payment_link.paid event does not double-credit (stays at 20 credits)',
+    replayCreditWh.statusCode === 200 && replayCreditWh.json.duplicate === true && meAfterCredit.json.credits === 20 && meAfterCredit.json.plan === 'pro' && meAfterCredit.json.usingCredit === true,
+    JSON.stringify(meAfterCredit.json),
+  );
+
+  // Creating a Pro-featured link on credits consumes 1 credit (20 -> 19)
+  const creditDoc = await call(create, {
+    url: '/api/create',
+    headers: { cookie: buyer.cookie },
+    body: { pages: 25, password: 'credit-pw', watermark: 'Credit Link' },
+  });
+  const meAfterUse = await call(auth, { url: '/api/auth/me', method: 'GET', headers: { cookie: buyer.cookie } });
+  check(
+    'creating a link with credits unlocks Pro limits and decrements credits by 1',
+    creditDoc.statusCode === 201 && creditDoc.json.plan === 'pro' && meAfterUse.json.credits === 19,
+    `credits=${meAfterUse.json.credits}`,
+  );
+
+  // Subscription activation upgrades user to Ultra
+  const futureEndSec = Math.floor((Date.now() + 30 * 86400 * 1000) / 1000);
+  const subActivatedBody = {
+    id: 'evt_sub_act_1',
+    event: 'subscription.activated',
+    payload: {
+      subscription: {
+        entity: {
+          id: 'sub_live_99',
+          current_end: futureEndSec,
+          notes: { uid: buyer.uid, plan: 'ultra', period: 'monthly' },
+        },
+      },
+    },
+  };
+  const { raw: subRaw, sig: subSig } = signWebhook(subActivatedBody);
+  const subWh = await call(billing, {
+    url: '/api/billing/webhook',
+    headers: { 'x-razorpay-signature': subSig, 'x-razorpay-event-id': 'evt_sub_act_1' },
+    body: subRaw,
+  });
+  const meUltra = await call(auth, { url: '/api/auth/me', method: 'GET', headers: { cookie: buyer.cookie } });
+  check(
+    'subscription.activated upgrades user to ultra',
+    subWh.statusCode === 200 && meUltra.json.plan === 'ultra' && meUltra.json.basePlan === 'ultra',
+    JSON.stringify(meUltra.json),
+  );
+
+  // Cancel at period end marks cancelAtPeriodEnd: true but keeps Ultra active until period end
+  const cancelRes = await call(billing, {
+    url: '/api/billing/cancel',
+    headers: { cookie: buyer.cookie },
+  });
+  const meAfterCancel = await call(auth, { url: '/api/auth/me', method: 'GET', headers: { cookie: buyer.cookie } });
+  check(
+    'cancel at period end keeps the paid plan active until period end',
+    cancelRes.statusCode === 200 && meAfterCancel.json.cancelAtPeriodEnd === true && meAfterCancel.json.plan === 'ultra',
+    JSON.stringify(meAfterCancel.json),
+  );
+
+  // Lapsed subscription falls back to free without deleting user data
+  const lapsedUser = JSON.parse(redisStore.get(K.user(buyer.emailHash)).v);
+  lapsedUser.planPeriodEnd = Date.now() - 5000;
+  lapsedUser.credits = 0;
+  redisStore.set(K.user(buyer.emailHash), { v: JSON.stringify(lapsedUser), exp: null });
+
+  const meLapsed = await call(auth, { url: '/api/auth/me', method: 'GET', headers: { cookie: buyer.cookie } });
+  check(
+    'lapsed subscription resolves to free on the next check without deleting user record',
+    meLapsed.statusCode === 200 && meLapsed.json.plan === 'free' && meLapsed.json.email === 'buyer@example.com',
+    JSON.stringify(meLapsed.json),
   );
 }
 

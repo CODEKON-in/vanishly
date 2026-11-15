@@ -9,5 +9,8 @@ export async function resolve(specifier, context, next) {
   if (specifier.endsWith('/_lib/mail.js') || specifier === './mail.js') {
     return next(new URL('./stub-mail.mjs', import.meta.url).href, context);
   }
+  if (specifier.endsWith('/_lib/razorpay.js') || specifier === './razorpay.js') {
+    return next(new URL('./stub-razorpay.mjs', import.meta.url).href, context);
+  }
   return next(specifier, context);
 }
