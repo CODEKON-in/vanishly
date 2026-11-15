@@ -3,20 +3,28 @@ import * as pdfjsLib from '/vendor/pdfjs/pdf.min.mjs?v=2';
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs?v=2';
 
 const LIMITS = {
-  maxPages: 30,
-  maxTotalBytes: 15 * 1024 * 1024,
+  maxPages: 10,
+  maxTotalBytes: 5 * 1024 * 1024,
   maxPageBytes: 1.5 * 1024 * 1024,
+  planName: 'Free',
+  planKey: 'free',
 };
 const STORE_KEY = 'vanishly.links.v1';
 
 const $ = (id) => document.getElementById(id);
 const el = {
-  drop: $('drop'), file: $('file'),
+  drop: $('drop'), file: $('file'), pickHint: $('pick-hint'),
+  planBadge: $('plan-badge'), navAccount: $('nav-account'),
   stepPick: $('step-pick'), stepOpts: $('step-options'),
   stepProg: $('step-progress'), stepDone: $('step-done'),
   fileInfo: $('file-info'), optError: $('opt-error'), pickError: $('pick-error'),
   go: $('go'), cancelPick: $('cancel-pick'), again: $('again'),
   password: $('password'), watermark: $('watermark'),
+  fieldExpiry: $('field-expiry'), tagExpiry: $('tag-expiry'), lockExpiry: $('lock-expiry'),
+  fieldLife: $('field-life'), tagLife: $('tag-life'), lockLife: $('lock-life'),
+  fieldOpens: $('field-opens'), tagOpens: $('tag-opens'), lockOpens: $('lock-opens'),
+  fieldPassword: $('field-password'), tagPassword: $('tag-password'), lockPassword: $('lock-password'),
+  fieldWatermark: $('field-watermark'), tagWatermark: $('tag-watermark'), lockWatermark: $('lock-watermark'),
   progLabel: $('prog-label'), progPct: $('prog-pct'), progBar: $('prog-bar'), progNote: $('prog-note'),
   shareUrl: $('share-url'), copy: $('copy'), share: $('share'), delNow: $('del-now'),
   sheet: $('sheet'), sheetClose: $('sheet-close'), shareGrid: $('share-grid'),
@@ -45,6 +53,17 @@ function fmtBytes(b) {
   return `${(b / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function fmtDuration(seconds) {
+  const s = Number(seconds) || 300;
+  if (s < 60) return `${s} seconds`;
+  if (s < 3600) {
+    const m = Math.round(s / 60);
+    return `${m} minute${m === 1 ? '' : 's'}`;
+  }
+  const h = Math.round(s / 3600);
+  return `${h} hour${h === 1 ? '' : 's'}`;
+}
+
 function mmss(ms) {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -55,15 +74,33 @@ function radio(name) {
   return hit ? Number(hit.value) : null;
 }
 
-function error(msg) {
-  el.optError.textContent = msg;
-  el.optError.hidden = false;
+function renderAlert(box, msg, withUpgrade = false) {
+  box.textContent = '';
+  const body = document.createElement('span');
+  body.className = 'err-body';
+  body.textContent = msg;
+  box.append(body);
+
+  if (withUpgrade) {
+    const cta = document.createElement('div');
+    cta.className = 'err-cta';
+    const link = document.createElement('a');
+    link.href = '/pricing';
+    link.className = 'upgrade-btn';
+    link.textContent = 'Upgrade plan \u2192';
+    cta.append(link);
+    box.append(cta);
+  }
+  box.hidden = false;
+}
+
+function error(msg, withUpgrade = false) {
+  renderAlert(el.optError, msg, withUpgrade);
 }
 
 /** Errors that happen before a file is accepted belong on the pick step. */
-function pickError(msg) {
-  el.pickError.textContent = msg;
-  el.pickError.hidden = false;
+function pickError(msg, withUpgrade = false) {
+  renderAlert(el.pickError, msg, withUpgrade);
   show(el.stepPick);
 }
 
@@ -94,10 +131,133 @@ async function api(path, { method = 'POST', json, body, headers = {} } = {}) {
   if (!res.ok) {
     const err = new Error(data?.message || `Request failed (${res.status})`);
     err.code = data?.error;
+    err.limit = data?.limit;
+    err.plan = data?.plan;
     err.status = res.status;
     throw err;
   }
   return data;
+}
+
+/* ----------------------------------------------------- plan & account UI */
+
+function applyPlanState(me) {
+  if (!me || !me.limits) return;
+  const lim = me.limits;
+  const planKey = me.plan || 'free';
+  LIMITS.maxPages = lim.maxPages || 10;
+  LIMITS.maxTotalBytes = lim.maxTotalBytes || 5 * 1024 * 1024;
+  LIMITS.maxPageBytes = lim.maxPageBytes || 1.5 * 1024 * 1024;
+  LIMITS.planName = lim.name || 'Free';
+  LIMITS.planKey = planKey;
+
+  if (el.planBadge) {
+    el.planBadge.className = `plan-badge ${planKey}`;
+    if (me.usingCredit && me.credits > 0) {
+      el.planBadge.textContent = `Pro \u00b7 ${me.credits} credit${me.credits === 1 ? '' : 's'}`;
+    } else {
+      el.planBadge.textContent = `${LIMITS.planName} plan`;
+    }
+  }
+  if (el.navAccount) {
+    el.navAccount.textContent = me.authenticated ? 'Account' : 'Sign in';
+  }
+  if (el.pickHint) {
+    const mb = Math.round(LIMITS.maxTotalBytes / (1024 * 1024));
+    el.pickHint.textContent = `Up to ${LIMITS.maxPages} pages and ${mb} MB on your ${LIMITS.planName} plan. Your PDF never leaves your device \u2014 only flattened page images are uploaded.`;
+  }
+
+  // Enable/disable timer radio options based on the plan's allowed choices
+  const expAllowed = new Set(lim.expiryChoices || [120, 300]);
+  for (const input of document.querySelectorAll('input[name="expiry"]')) {
+    const allowed = expAllowed.has(Number(input.value));
+    input.disabled = !allowed;
+    if (!allowed && input.checked) {
+      const fallback = document.querySelector('input[name="expiry"][value="300"]');
+      if (fallback) fallback.checked = true;
+    }
+  }
+  const allExpUnlocked = expAllowed.has(86400);
+  if (el.fieldExpiry) el.fieldExpiry.classList.toggle('is-locked', !allExpUnlocked);
+  if (el.tagExpiry) {
+    el.tagExpiry.hidden = allExpUnlocked;
+    el.tagExpiry.textContent = planKey === 'pro' ? '\uD83D\uDD12 Ultra' : '\uD83D\uDD12 Pro / Ultra';
+  }
+  if (el.lockExpiry) el.lockExpiry.hidden = allExpUnlocked;
+
+  const lifeAllowed = new Set(lim.lifetimeChoices || [3600]);
+  for (const input of document.querySelectorAll('input[name="life"]')) {
+    const allowed = lifeAllowed.has(Number(input.value));
+    input.disabled = !allowed;
+    if (!allowed && input.checked) {
+      const fallback = document.querySelector('input[name="life"][value="3600"]');
+      if (fallback) fallback.checked = true;
+    }
+  }
+  const allLifeUnlocked = lifeAllowed.has(604800);
+  if (el.fieldLife) el.fieldLife.classList.toggle('is-locked', !allLifeUnlocked);
+  if (el.tagLife) {
+    el.tagLife.hidden = allLifeUnlocked;
+    el.tagLife.textContent = planKey === 'pro' ? '\uD83D\uDD12 Ultra' : '\uD83D\uDD12 Pro / Ultra';
+  }
+  if (el.lockLife) el.lockLife.hidden = allLifeUnlocked;
+
+  // Multi-open
+  const multiInput = document.querySelector('input[name="opens"][value="0"]');
+  if (multiInput) {
+    multiInput.disabled = !lim.multiOpen;
+    if (!lim.multiOpen && multiInput.checked) {
+      const once = document.querySelector('input[name="opens"][value="1"]');
+      if (once) once.checked = true;
+    }
+  }
+  if (el.fieldOpens) el.fieldOpens.classList.toggle('is-locked', !lim.multiOpen);
+  if (el.tagOpens) el.tagOpens.hidden = Boolean(lim.multiOpen);
+  if (el.lockOpens) el.lockOpens.hidden = Boolean(lim.multiOpen);
+
+  // Password
+  if (el.password) {
+    el.password.disabled = !lim.password;
+    if (!lim.password) el.password.value = '';
+  }
+  if (el.fieldPassword) el.fieldPassword.classList.toggle('is-locked', !lim.password);
+  if (el.tagPassword) el.tagPassword.hidden = Boolean(lim.password);
+  if (el.lockPassword) el.lockPassword.hidden = Boolean(lim.password);
+
+  // Watermark
+  if (el.watermark) {
+    el.watermark.disabled = !lim.watermark;
+    if (!lim.watermark) el.watermark.value = '';
+  }
+  if (el.fieldWatermark) el.fieldWatermark.classList.toggle('is-locked', !lim.watermark);
+  if (el.tagWatermark) el.tagWatermark.hidden = Boolean(lim.watermark);
+  if (el.lockWatermark) el.lockWatermark.hidden = Boolean(lim.watermark);
+
+  // Sync cross-device link history for paid users
+  if (Array.isArray(me.links) && me.links.length) {
+    const local = load();
+    const byId = new Map(local.map((item) => [item.id, item]));
+    let added = false;
+    for (const remote of me.links) {
+      if (remote?.id && !byId.has(remote.id)) {
+        local.push({ ...remote, state: 'ready' });
+        added = true;
+      }
+    }
+    if (added) {
+      local.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      save(local);
+      renderList();
+      refreshStatuses();
+    }
+  }
+}
+
+async function loadPlanState() {
+  try {
+    const me = await fetch('/api/auth/me', { cache: 'no-store' }).then((r) => r.json());
+    applyPlanState(me);
+  } catch { /* offline or initial load */ }
 }
 
 /* --------------------------------------------------------------- picking */
@@ -120,13 +280,16 @@ async function pick(file) {
     if (pdf.numPages > LIMITS.maxPages) {
       picked = null;
       el.file.value = '';
-      pickError(`This PDF has ${pdf.numPages} pages. The limit is ${LIMITS.maxPages}.`);
+      pickError(
+        `This PDF has ${pdf.numPages} pages. Your ${LIMITS.planName} plan allows up to ${LIMITS.maxPages} pages (Pro allows 50, Ultra allows 200).`,
+        LIMITS.planKey !== 'ultra',
+      );
       return;
     }
     picked = { file, pdf, pages: pdf.numPages };
     el.fileInfo.textContent = `${file.name} · ${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'} · ${fmtBytes(file.size)}`;
     show(el.stepOpts);
-  } catch (err) {
+  } catch {
     picked = null;
     el.file.value = '';
     el.fileInfo.textContent = '';
@@ -193,6 +356,7 @@ async function createLink() {
   try {
     session = await api('/api/create', {
       json: {
+        name: picked.file.name,
         pages: picked.pages,
         expirySeconds: radio('expiry'),
         maxLifetimeSeconds: radio('life'),
@@ -210,7 +374,9 @@ async function createLink() {
 
       total += blob.size;
       if (total > LIMITS.maxTotalBytes) {
-        throw new Error(`This document is over the ${fmtBytes(LIMITS.maxTotalBytes)} limit. Try a shorter PDF.`);
+        const sizeErr = new Error(`This document is over the ${fmtBytes(LIMITS.maxTotalBytes)} limit on your ${LIMITS.planName} plan.`);
+        sizeErr.code = 'plan_limit';
+        throw sizeErr;
       }
 
       progress(base + (94 / picked.pages) * 0.5, `Uploading page ${i} of ${picked.pages}…`);
@@ -228,7 +394,8 @@ async function createLink() {
       id: session.id,
       ownerToken: session.ownerToken,
       url: `${location.origin}/v/${session.id}`,
-      mins: Math.round(session.expirySeconds / 60),
+      mins: Math.max(1, Math.round(session.expirySeconds / 60)),
+      expirySeconds: session.expirySeconds,
     };
 
     remember({
@@ -241,13 +408,13 @@ async function createLink() {
     });
 
     el.shareUrl.value = current.url;
-    const mins = Math.round(session.expirySeconds / 60);
-    el.doneCopy.textContent = `Link vanishes ${mins} minute${mins === 1 ? '' : 's'} after it is first opened${session.maxOpens === 1 ? ', and can be opened only once' : ''}.`;
+    el.doneCopy.textContent = `Link vanishes ${fmtDuration(session.expirySeconds)} after it is first opened${session.maxOpens === 1 ? ', and can be opened only once' : ''}.`;
     el.doneMsg.hidden = true;
     el.stepProg.classList.add('dissolving');
     setTimeout(() => el.stepProg.classList.remove('dissolving'), 600);
     show(el.stepDone);
     renderList();
+    loadPlanState();
   } catch (err) {
     // Leave nothing behind.
     if (session?.id) {
@@ -258,7 +425,8 @@ async function createLink() {
       } catch { /* best effort */ }
     }
     show(el.stepOpts);
-    error(err.message || 'Something went wrong. Please try again.');
+    const isPlanErr = err?.code === 'plan_limit';
+    error(err.message || 'Could not create the link. Please try again.', isPlanErr);
   } finally {
     el.go.disabled = false;
   }
@@ -573,6 +741,7 @@ el.delNow.addEventListener('click', async () => {
   }
 });
 
+loadPlanState();
 renderList();
 refreshStatuses();
 setInterval(renderList, 1000);

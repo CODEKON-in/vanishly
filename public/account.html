@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFF6EA">
+<meta name="robots" content="noindex, nofollow">
+<title>Account — Vanishly</title>
+<meta name="description" content="Manage your Vanishly account, plan, credits, and cross-device link history.">
+<link rel="preload" href="/fonts/fredoka-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/css/style.css">
+<script src="/js/theme.js"></script>
+</head>
+<body>
+<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to dark theme" aria-pressed="false">
+  <svg class="tt-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <mask id="tt-mask"><rect x="-4" y="-4" width="32" height="32" fill="#fff"></rect><circle class="tt-bite" cx="30" cy="-6" r="7" fill="#000"></circle></mask>
+    <circle class="tt-core" cx="12" cy="12" r="5" mask="url(#tt-mask)"></circle>
+    <g class="tt-rays"><path d="M12 1.5v2.5M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"></path></g>
+  </svg>
+  <i class="tt-spark"></i><i class="tt-spark"></i><i class="tt-spark"></i><i class="tt-spark"></i><i class="tt-spark"></i><i class="tt-spark"></i>
+</button>
+
+<div class="wrap">
+
+  <header class="site-head">
+    <a href="/" class="head-brand">
+      <div class="logo" aria-hidden="true">V</div>
+      <div>
+        <h1 class="wordmark">Vanishl<span class="fade">y</span></h1>
+        <p class="sub">Your account, plan, and cross-device links.</p>
+      </div>
+    </a>
+    <nav class="head-nav" aria-label="Site navigation">
+      <a href="/account" class="plan-badge free" id="plan-badge">Free plan</a>
+      <a href="/" class="nav-link">Upload PDF</a>
+      <a href="/pricing" class="nav-link">Pricing</a>
+    </nav>
+  </header>
+
+  <div id="paid-banner" class="alert paid-banner" hidden role="status">
+    Payment received, updating your plan…
+  </div>
+
+  <!-- LOGIN VIEW (when signed out) -->
+  <section class="card step" id="view-login" hidden aria-labelledby="login-h">
+    <h2 id="login-h">Sign in with a one-time code</h2>
+    <p class="tiny">No password to remember. Free works without an account — sign in only to buy a plan or sync links across devices.</p>
+
+    <div id="login-step-email">
+      <div class="field">
+        <label for="login-email">Email address</label>
+        <input type="email" id="login-email" autocomplete="email" maxlength="254" placeholder="you@example.com">
+      </div>
+      <div id="login-email-err" class="alert err" hidden role="alert"></div>
+      <button type="button" class="btn" id="login-send">Send 6-digit code</button>
+    </div>
+
+    <div id="login-step-code" hidden>
+      <div class="field">
+        <span class="field-label" id="lbl-login-code">Enter your 6-digit code</span>
+        <div class="otp-boxes" role="group" aria-labelledby="lbl-login-code">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="code-0" aria-label="Digit 1">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="code-1" aria-label="Digit 2">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="code-2" aria-label="Digit 3">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="code-3" aria-label="Digit 4">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="code-4" aria-label="Digit 5">
+          <input type="text" inputmode="numeric" maxlength="1" class="otp-digit" id="code-5" aria-label="Digit 6">
+        </div>
+        <span class="hint" id="login-code-hint">Sent to your inbox. Paste or type the 6 digits.</span>
+      </div>
+      <div id="login-code-err" class="alert err" hidden role="alert"></div>
+      <div class="btn-row">
+        <button type="button" class="btn ghost" id="login-back">Different email</button>
+        <button type="button" class="btn" id="login-verify">Verify &amp; sign in</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCOUNT VIEW (when signed in) -->
+  <section class="card step" id="view-account" hidden aria-labelledby="acct-h">
+    <h2 id="acct-h">Account overview</h2>
+
+    <div class="acct-grid">
+      <div class="acct-stat">
+        <span class="stat-k">Email</span>
+        <span class="stat-v" id="acct-email">—</span>
+      </div>
+      <div class="acct-stat">
+        <span class="stat-k">Current plan</span>
+        <span class="stat-v" id="acct-plan">Free</span>
+      </div>
+      <div class="acct-stat">
+        <span class="stat-k">Renewal / expiry</span>
+        <span class="stat-v" id="acct-renewal">—</span>
+      </div>
+      <div class="acct-stat">
+        <span class="stat-k">Credits left</span>
+        <span class="stat-v" id="acct-credits">0</span>
+      </div>
+    </div>
+
+    <div id="acct-msg" class="alert ok" hidden role="status"></div>
+    <div id="acct-err" class="alert err" hidden role="alert"></div>
+
+    <div class="acct-actions">
+      <a href="/pricing" class="btn sm" id="acct-upgrade">Upgrade or buy credits</a>
+      <button type="button" class="btn sm danger" id="cancel-sub" hidden>Cancel subscription</button>
+      <button type="button" class="btn sm ghost" id="logout-btn">Sign out</button>
+    </div>
+  </section>
+
+  <!-- CROSS-DEVICE LINK HISTORY -->
+  <section class="card flush" id="history-card" hidden aria-labelledby="hist-h">
+    <div class="list-head">
+      <h2 id="hist-h" class="sr">Cross-device link history</h2>
+    </div>
+    <div id="history-locked" class="history-locked" hidden>
+      <span class="lock-tag">&#128274; Pro &amp; Ultra</span>
+      <p class="tiny">Cross-device link history is included with Pro and Ultra plans so you can track and delete your active links from any phone or laptop.</p>
+      <a href="/pricing" class="btn sm">Upgrade to unlock history</a>
+    </div>
+    <div id="history-empty" class="history-locked" hidden>
+      <p class="tiny">No links created on this account yet.</p>
+      <a href="/" class="btn sm ghost">Share a PDF</a>
+    </div>
+    <ul class="list" id="acct-links"></ul>
+  </section>
+
+</div>
+
+<footer class="ck-foot">
+  <a class="ck-link" href="https://codekon.in" target="_blank" rel="noopener noreferrer">
+    <span class="ck-by">Designed by</span>
+    <span class="ck-mark"><span class="ck-code">CODE</span><span class="ck-kon">KON</span></span>
+  </a>
+</footer>
+<script type="module" src="/js/account.js"></script>
+</body>
+</html>

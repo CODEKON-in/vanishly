@@ -30,11 +30,18 @@
 <div class="wrap">
 
   <header class="site-head">
-    <div class="logo" aria-hidden="true">V</div>
-    <div>
-      <h1 class="wordmark">Vanishl<span class="fade">y</span></h1>
-      <p class="sub">View-only. No download. The link vanishes after it is opened.</p>
+    <div class="head-brand">
+      <div class="logo" aria-hidden="true">V</div>
+      <div>
+        <h1 class="wordmark">Vanishl<span class="fade">y</span></h1>
+        <p class="sub">View-only. No download. The link vanishes after it is opened.</p>
+      </div>
     </div>
+    <nav class="head-nav" aria-label="Account and pricing">
+      <a href="/account" class="plan-badge free" id="plan-badge">Free plan</a>
+      <a href="/pricing" class="nav-link">Pricing</a>
+      <a href="/account" class="nav-link" id="nav-account">Account</a>
+    </nav>
   </header>
 
   <!-- STEP 1: pick a file -->
@@ -45,7 +52,7 @@
       <strong>Drop a PDF here</strong>
       <span class="tiny">or tap to choose a file</span>
     </div>
-    <span class="hint" id="pick-hint">Up to 30 pages and 15 MB. Your PDF never leaves your device — only flattened page images are uploaded.</span>
+    <span class="hint" id="pick-hint">Up to 10 pages and 5 MB on Free (up to 200 pages on Ultra). Your PDF never leaves your device — only flattened page images are uploaded.</span>
     <div id="pick-error" class="alert err" hidden role="alert"></div>
     <input type="file" id="file" accept="application/pdf,.pdf">
   </section>
@@ -55,50 +62,78 @@
     <h2 id="opt-h">Sharing options</h2>
     <p class="tiny" id="file-info"></p>
 
-    <div class="field">
-      <span class="field-label" id="lbl-expiry">Vanishes after first open</span>
+    <div class="field is-locked" id="field-expiry">
+      <span class="field-label" id="lbl-expiry">
+        <span>Vanishes after first open</span>
+        <span class="lock-tag" id="tag-expiry">&#128274; Pro / Ultra</span>
+      </span>
       <div class="seg" role="radiogroup" aria-labelledby="lbl-expiry">
+        <input type="radio" name="expiry" id="exp-30" value="30" disabled>
+        <label for="exp-30">30 sec</label>
         <input type="radio" name="expiry" id="exp-120" value="120">
         <label for="exp-120">2 min</label>
-        <input type="radio" name="expiry" id="exp-180" value="180">
-        <label for="exp-180">3 min</label>
         <input type="radio" name="expiry" id="exp-300" value="300" checked>
         <label for="exp-300">5 min</label>
+        <input type="radio" name="expiry" id="exp-900" value="900" disabled>
+        <label for="exp-900">15 min</label>
+        <input type="radio" name="expiry" id="exp-3600" value="3600" disabled>
+        <label for="exp-3600">1 hr</label>
+        <input type="radio" name="expiry" id="exp-86400" value="86400" disabled>
+        <label for="exp-86400">24 hr</label>
       </div>
+      <span class="lock-note" id="lock-expiry">&#128274; 30s–1 hr timers require Pro; 24 hr requires Ultra.<a href="/pricing" class="lock-link">Upgrade</a></span>
     </div>
 
-    <div class="field">
-      <span class="field-label" id="lbl-life">If never opened, delete after</span>
+    <div class="field is-locked" id="field-life">
+      <span class="field-label" id="lbl-life">
+        <span>If never opened, delete after</span>
+        <span class="lock-tag" id="tag-life">&#128274; Pro / Ultra</span>
+      </span>
       <div class="seg" role="radiogroup" aria-labelledby="lbl-life">
         <input type="radio" name="life" id="life-3600" value="3600" checked>
         <label for="life-3600">1 hour</label>
-        <input type="radio" name="life" id="life-21600" value="21600">
+        <input type="radio" name="life" id="life-21600" value="21600" disabled>
         <label for="life-21600">6 hours</label>
-        <input type="radio" name="life" id="life-86400" value="86400">
+        <input type="radio" name="life" id="life-86400" value="86400" disabled>
         <label for="life-86400">24 hours</label>
+        <input type="radio" name="life" id="life-604800" value="604800" disabled>
+        <label for="life-604800">7 days</label>
       </div>
+      <span class="lock-note" id="lock-life">&#128274; Keeping unread links up to 24 hours requires Pro; 7 days requires Ultra.<a href="/pricing" class="lock-link">Upgrade</a></span>
     </div>
 
-    <div class="field">
-      <span class="field-label" id="lbl-opens">How many times can it be opened?</span>
+    <div class="field is-locked" id="field-opens">
+      <span class="field-label" id="lbl-opens">
+        <span>How many times can it be opened?</span>
+        <span class="lock-tag" id="tag-opens">&#128274; Pro</span>
+      </span>
       <div class="seg" role="radiogroup" aria-labelledby="lbl-opens">
         <input type="radio" name="opens" id="opens-1" value="1" checked>
         <label for="opens-1">Once</label>
-        <input type="radio" name="opens" id="opens-0" value="0">
+        <input type="radio" name="opens" id="opens-0" value="0" disabled>
         <label for="opens-0">Any number, until the timer runs out</label>
       </div>
+      <span class="lock-note" id="lock-opens">&#128274; Multi-open links require Pro or Ultra.<a href="/pricing" class="lock-link">Upgrade</a></span>
     </div>
 
-    <div class="field">
-      <label for="password">Password <span class="tiny">(optional)</span></label>
-      <input type="password" id="password" autocomplete="new-password" minlength="4" maxlength="128" placeholder="At least 4 characters">
+    <div class="field is-locked" id="field-password">
+      <label for="password">
+        <span>Password <span class="tiny">(optional)</span></span>
+        <span class="lock-tag" id="tag-password">&#128274; Pro</span>
+      </label>
+      <input type="password" id="password" autocomplete="new-password" minlength="4" maxlength="128" placeholder="At least 4 characters" disabled>
       <span class="hint">Send it separately — not in the same chat as the link.</span>
+      <span class="lock-note" id="lock-password">&#128274; Password protection requires Pro or Ultra.<a href="/pricing" class="lock-link">Upgrade</a></span>
     </div>
 
-    <div class="field">
-      <label for="watermark">Watermark <span class="tiny">(optional)</span></label>
-      <input type="text" id="watermark" maxlength="60" placeholder="e.g. For Priya only">
+    <div class="field is-locked" id="field-watermark">
+      <label for="watermark">
+        <span>Watermark <span class="tiny">(optional)</span></span>
+        <span class="lock-tag" id="tag-watermark">&#128274; Pro</span>
+      </label>
+      <input type="text" id="watermark" maxlength="60" placeholder="e.g. For Priya only" disabled>
       <span class="hint">Tiled faintly across every page, so a screenshot carries the name with it.</span>
+      <span class="lock-note" id="lock-watermark">&#128274; Custom watermarks require Pro or Ultra.<a href="/pricing" class="lock-link">Upgrade</a></span>
     </div>
 
     <div id="opt-error" class="alert err" hidden role="alert"></div>
